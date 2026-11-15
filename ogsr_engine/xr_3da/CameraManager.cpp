@@ -232,6 +232,8 @@ void CCameraManager::RemoveCamEffector(CEffectorCam* ef)
     }
 }
 
+int CCameraManager::PPEffectorTypeAt(u32 i) const { return i < m_EffectorsPP.size() ? int(m_EffectorsPP[i]->Type()) : -1; }
+
 CEffectorPP* CCameraManager::GetPPEffector(EEffectorPPType type)
 {
     for (auto it = m_EffectorsPP.begin(); it != m_EffectorsPP.end(); ++it)

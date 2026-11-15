@@ -336,7 +336,14 @@ Fvector CScriptGameObject::bone_position(LPCSTR bone_name) const
     else
         bone_id = k->LL_GetBoneRoot();
 
-    ASSERT_FMT_DBG(bone_id != BI_NONE, "model doesn't have bone [%s] for section [%s]", bone_name, object().cNameSect().c_str());
+    // В Release ASSERT_FMT_DBG пустой, и несуществующая кость роняла игру в LL_GetBoneInstance (например, xr_kamp.script
+    // спрашивает у трупа плоти кость "link"). Возвращаем позицию объекта.
+    if (bone_id == BI_NONE || bone_id >= k->LL_BoneCount())
+    {
+        ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, "bone_position: model [%s] of [%s] doesn't have bone [%s]",
+                                        object().cNameVisual().c_str(), object().cName().c_str(), bone_name ? bone_name : "");
+        return object().Position();
+    }
 
     Fmatrix matrix;
     matrix.mul_43(object().XFORM(), k->LL_GetBoneInstance(bone_id).mTransform);

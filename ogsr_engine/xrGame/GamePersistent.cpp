@@ -549,7 +549,9 @@ void CGamePersistent::OnFrame()
 
     if (Device.dwPrecacheFrame == 0 && load_screen_renderer.b_registered && !GameAutopaused)
     {
-        if (psActorFlags.test(AF_KEYPRESS_ON_START))
+        // -rbench: автоматический прогон бенчмарка рендера - не ждём нажатия клавиши после загрузки
+        static const bool b_autobench = !!strstr(Core.Params, "-rbench ");
+        if (psActorFlags.test(AF_KEYPRESS_ON_START) && !b_autobench)
         {
             Device.Pause(TRUE, TRUE, TRUE, "AUTOPAUSE_START");
             pApp->LoadForceFinish();

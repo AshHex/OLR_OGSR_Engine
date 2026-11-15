@@ -453,9 +453,27 @@ static class ssfx_wpn_dof_2 final : public R_constant_setup
     }
 } ssfx_wpn_dof_2;
 
+#if RENDER == R_R2
+// Параметры аналитической модели освещения из шейдеров OLR-SOP (r2\lmodel.h, r2\combine_1.ps):
+// x = fresnel amount, y = specular scale, z = log2(pow_min), w = log2(pow_max)
+static class cl_spec_params final : public R_constant_setup
+{
+    void setup(R_constant* C) override
+    {
+        const float pow_min = _max(ps_r2_spec_pow_min, 1.f);
+        const float pow_max = _max(ps_r2_spec_pow_max, pow_min);
+        RCache.set_c(C, ps_r2_spec_fresnel, ps_r2_spec_scale, std::log2(pow_min), std::log2(pow_max));
+    }
+} binder_spec_params;
+#endif
+
 // Standart constant-binding
 void CBlender_Compile::SetMapping()
 {
+#if RENDER == R_R2
+    r_Constant("spec_params", &binder_spec_params);
+#endif
+
     // matrices
     r_Constant("m_W", &binder_w);
     r_Constant("m_invW", &binder_invw);

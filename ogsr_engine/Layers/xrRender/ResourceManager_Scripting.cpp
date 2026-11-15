@@ -6,6 +6,7 @@
 #include "blenders\blender.h"
 #include "blenders\blender_recorder.h"
 #include "dxRenderDeviceRender.h"
+#include <format>
 
 // wrapper
 class adopt_sampler

@@ -77,7 +77,10 @@
 #pragma warning(pop)
 
 // Our headers
-#ifdef XRCORE_STATIC
+#if defined(XRCORE_STATIC) && defined(XRCORE_EXPORTS)
+// xrCore линкуется статически в xrEngine.exe, но экспортируется из него для рендеров-DLL
+#define XRCORE_API __declspec(dllexport)
+#elif defined(XRCORE_STATIC)
 #define XRCORE_API
 #else
 #ifdef XRCORE_EXPORTS

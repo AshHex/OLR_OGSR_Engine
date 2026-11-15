@@ -13,6 +13,7 @@
 #include "tss.h"
 #include "blenders\blender.h"
 #include "blenders\blender_recorder.h"
+#include "r__shader_audit.h"
 #include <execution>
 
 //	Already defined in Texture.cpp
@@ -329,6 +330,12 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
                 return pShader;
             else
             {
+                if (LPCSTR alias = RAudit_FindAlias(s_shader); alias && xr_strcmp(alias, s_shader) && _lua_HasShader(alias))
+                {
+                    RAudit_NoteMissingShader(s_shader, s_textures, alias);
+                    return _lua_Create(alias, s_textures);
+                }
+                RAudit_NoteMissingShader(s_shader, s_textures, "stub_default");
                 if (_lua_HasShader("stub_default"))
                     return _lua_Create("stub_default", s_textures);
                 else
@@ -342,6 +349,27 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
 #ifndef _EDITOR
         if (_lua_HasShader(s_shader))
             return _lua_Create(s_shader, s_textures);
+        else if (!_FindBlender(s_shader))
+        {
+            // Явный аналог из shaders\<render>\shader_aliases.ltx (например, вода/фары, которых нет в этом рендере)
+            if (LPCSTR alias = RAudit_FindAlias(s_shader); alias && xr_strcmp(alias, s_shader) && (_lua_HasShader(alias) || _FindBlender(alias)))
+            {
+                RAudit_NoteMissingShader(s_shader, s_textures, alias);
+                return Create(alias, s_textures, s_constants, s_matrices);
+            }
+
+            // Шейдер, которого нет ни в shaders.xr, ни среди скриптовых (*.s) шейдеров этого рендера. Такие шейдеры (обычно из модов)
+            // часто есть только для DX10/11 (gamedata\shaders\r3\*.s). Вместо вылета рисуем объект стандартным шейдером, как это
+            // делается для DX10/11 через stub_default.
+            // Для моделей (в т.ч. скелетных: ноги от 1-го лица, НПС, худ) берём models\model - он учитывает скиннинг.
+            // def_vertex для скелетных моделей даёт мусор, т.к. его вершинный шейдер не знает о скиннинге.
+            const bool is_model = s_shader && !strnicmp(s_shader, "models\\", 7) && _FindBlender("models\\model");
+            const LPCSTR fallback_shader = is_model ? "models\\model" : "def_shaders\\def_vertex";
+            Msg("! [%s] Shader [%s] not found in library or scripts of [%s] render, using [%s] for textures [%s]", __FUNCTION__, s_shader, ::Render->getShaderPath(),
+                fallback_shader, s_textures ? s_textures : "");
+            RAudit_NoteMissingShader(s_shader, s_textures, fallback_shader);
+            return _cpp_Create(fallback_shader, s_textures, s_constants, s_matrices);
+        }
         else
 #endif
             return _cpp_Create(s_shader, s_textures, s_constants, s_matrices);

@@ -13,10 +13,35 @@
 
 void export_classes(lua_State* L);
 
+#ifndef LUABIND_09
+// Рендеры теперь грузятся отдельными DLL и имеют свою копию luabind, поэтому аллокатор luabind,
+// который инитится в ResourceManager_Scripting.cpp рендера, до копии luabind в xrEngine.exe не доходит.
+// Инитим его и здесь.
+static void* __cdecl script_luabind_allocator(luabind::memory_allocation_function_parameter, const void* pointer, size_t const size)
+{
+    void* non_const_pointer = const_cast<void*>(pointer);
+    if (!size)
+    {
+        xr_free(non_const_pointer);
+        return nullptr;
+    }
+
+    if (!pointer)
+        return Memory.mem_alloc(size);
+
+    return Memory.mem_realloc(non_const_pointer, size);
+}
+#endif
+
 CScriptEngine::CScriptEngine()
 {
-    // KRodin: luabind_allocator инитится в ResourceManager_Scripting.cpp, т.к там luabind инитится раньше всего.
-    //
+#ifndef LUABIND_09
+    if (!luabind::allocator)
+    {
+        luabind::allocator = &script_luabind_allocator;
+        luabind::allocator_parameter = nullptr;
+    }
+#endif
     m_stack_level = 0;
     m_reload_modules = false;
 }

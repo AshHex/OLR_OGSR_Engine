@@ -550,9 +550,15 @@ void CRender::add_leafs_Dynamic(dxRender_Visual* pVisual)
 // explicit opt-in: shadow-caster culling can change off-screen silhouettes.
 static bool OGSRMOC_SecondaryHidden(const dxRender_Visual* visual)
 {
+#if RENDER == R_R1
+    // В R1 нет фазы рендера карт теней (PHASE_SMAP)
+    (void)visual;
+    return false;
+#else
     if (!visual || !RImplementation.HOM.MOCActive()) return false;
     if (RImplementation.phase != CRender::PHASE_SMAP || !ps_r__moc_cull_shadows) return false;
     return !RImplementation.HOM.MOCVisibleMainPadded(visual->vis.box, float(ps_r__moc_shadow_guard));
+#endif
 }
 
 void CRender::add_leafs_Static(dxRender_Visual* pVisual)

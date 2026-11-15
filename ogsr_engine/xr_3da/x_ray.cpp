@@ -163,6 +163,61 @@ void execUserScript()
     }
 }
 
+
+// Диагностика вылетов при выходе из игры (после закрытия лога, когда штатный обработчик уже не работает):
+// модуль/функция/строка нарушения доступа пишутся в $logs$\shutdown_crash.txt.
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
+static string_path g_shutdown_crash_file{};
+
+static LONG CALLBACK ShutdownAccessViolationLogger(PEXCEPTION_POINTERS info)
+{
+    static LONG reported = 0;
+    if (info->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION || InterlockedIncrement(&reported) > 3)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+    const DWORD64 addr = (DWORD64)info->ExceptionRecord->ExceptionAddress;
+    char module[MAX_PATH] = "?";
+    HMODULE hmod = nullptr;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)addr, &hmod))
+        GetModuleFileNameA(hmod, module, sizeof(module));
+
+    char func[256] = "?", line_info[MAX_PATH + 32] = "";
+    HANDLE proc = GetCurrentProcess();
+    SymSetOptions(SymGetOptions() | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS);
+    SymInitialize(proc, nullptr, TRUE);
+    alignas(SYMBOL_INFO) char sym_buf[sizeof(SYMBOL_INFO) + 256]{};
+    auto sym = reinterpret_cast<SYMBOL_INFO*>(sym_buf);
+    sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+    sym->MaxNameLen = 255;
+    DWORD64 disp = 0;
+    if (SymFromAddr(proc, addr, &disp, sym))
+        sprintf_s(func, "%s+0x%llx", sym->Name, disp);
+    IMAGEHLP_LINE64 ln{};
+    ln.SizeOfStruct = sizeof(ln);
+    DWORD ldisp = 0;
+    if (SymGetLineFromAddr64(proc, addr, &ldisp, &ln))
+        sprintf_s(line_info, " %s:%lu", ln.FileName, ln.LineNumber);
+
+    char text[1200];
+    const int n = sprintf_s(text, "access violation at %s (rva 0x%llx) in %s%s, %s address 0x%llx\r\n", module, hmod ? addr - (DWORD64)hmod : addr, func, line_info,
+                            info->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading", (DWORD64)info->ExceptionRecord->ExceptionInformation[1]);
+    HANDLE f = CreateFileA(g_shutdown_crash_file, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE)
+    {
+        DWORD written;
+        WriteFile(f, text, (DWORD)n, &written, nullptr);
+        CloseHandle(f);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+
+static void InstallShutdownCrashLogger()
+{
+    FS.update_path(g_shutdown_crash_file, "$logs$", "shutdown_crash.txt");
+    AddVectoredExceptionHandler(1, ShutdownAccessViolationLogger);
+}
 void Startup()
 {
     InitSound1();
@@ -199,6 +254,7 @@ void Startup()
     // Main cycle
     Memory.mem_usage();
     Device.Run();
+    InstallShutdownCrashLogger();
 
     // Destroy APP
     xr_delete(g_SpatialSpacePhysic);

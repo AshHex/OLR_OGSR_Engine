@@ -1,0 +1,18 @@
+#include "common.h"
+
+struct v2p
+{
+	float2 tc0	: TEXCOORD0;		// base0
+	float4 c	: COLOR0;			// color
+};
+
+uniform sampler2D s_base0;
+
+float4 main(v2p I) : COLOR
+{
+	float4 base0 = tex2D(s_base0, I.tc0);
+	float4 base = base0 * I.c;
+
+	float3 color = base * 2 * 0.5;
+	return float4(color, base.a);
+}

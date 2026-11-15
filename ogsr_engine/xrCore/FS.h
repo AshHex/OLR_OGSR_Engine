@@ -433,7 +433,8 @@ public:
         }
         else
         {
-            Msg("!![%s][%p] chunk [%u] has invalid size [%u], return elapsed size [%d]", __FUNCTION__, impl().pointer(), ID, dwSize, impl().elapsed());
+            // this вместо impl().pointer(): pointer() есть не у всех наследников (CStreamReader), а класс экспортируется из exe целиком
+            Msg("!![%s][%p] chunk [%u] has invalid size [%u], return elapsed size [%d]", __FUNCTION__, (void*)this, ID, dwSize, impl().elapsed());
             m_last_pos = 0;
             return impl().elapsed();
         }

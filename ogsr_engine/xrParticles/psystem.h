@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef XR_PARTICLES_STATIC
+#if defined(XR_PARTICLES_STATIC) && !defined(XR_PARTICLES_EXPORTS)
 #define PARTICLES_API
 #elif defined XR_PARTICLES_EXPORTS
 #define PARTICLES_API __declspec(dllexport)

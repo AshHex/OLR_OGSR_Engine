@@ -84,6 +84,15 @@ void CLevel::g_sv_Spawn(CSE_Abstract* E)
 #endif
 
     auto obj = Objects.net_Find(E->ID);
+    if (obj && !obj->getDestroy())
+    {
+        // Сервер снова спавнит объект (например, предмет НПС после быстрого перехода офлайн/онлайн), а на клиенте ещё жив
+        // прежний объект с этим ID, которому не дошло удаление. Раньше это был вылет "... ID[...] already registered".
+        const CObject* parent = obj->H_Parent();
+        Msg("! [%s] %s[%u] (parent [%s]) is still registered on the client while the server spawns [%s] with this ID - destroying stale object",
+            __FUNCTION__, obj->cName().c_str(), obj->ID(), parent ? parent->cName().c_str() : "none", E->name_replace());
+        obj->setDestroy(TRUE);
+    }
     if (obj && obj->getDestroy())
     {
         Msg("[%s]: %s[%u] already net_Spawn'ed, ProcessDestroyQueue()", __FUNCTION__, obj->cName().c_str(), obj->ID());

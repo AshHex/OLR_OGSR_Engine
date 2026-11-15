@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef XRCDB_STATIC
+#if defined(XRCDB_STATIC) && !defined(XRCDB_EXPORTS)
 #define XRCDB_API
 #elif defined XRCDB_EXPORTS
 #define XRCDB_API __declspec(dllexport)

@@ -173,8 +173,8 @@ enum
 
     R2FLAG_EXP_MT_CALC = (1 << 18),
 
-    // = 1 << 19,
-    // = 1 << 20,
+    R2FLAG_SOFT_WATER = (1 << 19), // R2/R3. Igor: need restart
+    R2FLAG_SOFT_PARTICLES = (1 << 20), // R2/R3. Igor: need restart
     R2FLAG_VOLUMETRIC_LIGHTS = (1 << 21),
     R2FLAG_STEEP_PARALLAX = (1 << 22),
     R2FLAG_DOF = (1 << 23),
@@ -219,6 +219,30 @@ enum
     R2FLAGEXT_SHADER_CACHE = 1 << 20,
     R2FLAGEXT_SMAP_2SIDE = 1 << 21,
 };
+
+#if RENDER == R_R2
+// Модель освещения шейдеров OLR-SOP (spec_params)
+extern ECORE_API float ps_r2_spec_fresnel;
+extern ECORE_API float ps_r2_spec_scale;
+extern ECORE_API float ps_r2_spec_pow_min;
+extern ECORE_API float ps_r2_spec_pow_max;
+#endif
+
+#if RENDER == R_R2 || RENDER == R_R3
+// Старые настройки SSAO для R2/R3. В R4 их выкинули ("Реворк настроек графики"), а их биты в
+// ps_r2_ls_flags_ext переиспользованы под SSFX_*, поэтому для R2/R3 они хранятся в отдельной переменной.
+extern ECORE_API u32 ps_r_ssao_mode;
+extern ECORE_API Flags32 ps_r2_ssao_flags;
+
+enum
+{
+    R2FLAGEXT_SSAO_BLUR = (1 << 0),
+    R2FLAGEXT_SSAO_OPT_DATA = (1 << 1),
+    R2FLAGEXT_SSAO_HALF_DATA = (1 << 2),
+    R2FLAGEXT_SSAO_HBAO = (1 << 3),
+    R2FLAGEXT_SSAO_HDAO = (1 << 4),
+};
+#endif
 
 extern void xrRender_initconsole();
 

@@ -6,7 +6,12 @@
 
 // you must define ENGINE_BUILD then building the engine itself
 // and not define it if you are about to build DLL
-#ifdef XRENGINE_STATIC
+// ENGINE_BUILD + XRENGINE_STATIC: движок собран в один exe вместе с xrGame, но экспортирует
+// своё API наружу, чтобы рендеры (xrRender_R*.dll) могли линковаться с xrEngine.exe.
+#if defined(ENGINE_BUILD) && defined(XRENGINE_STATIC)
+#define DLL_API
+#define ENGINE_API __declspec(dllexport)
+#elif defined(XRENGINE_STATIC)
 #define DLL_API
 #define ENGINE_API
 #elif defined ENGINE_BUILD

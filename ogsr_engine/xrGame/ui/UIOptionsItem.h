@@ -35,6 +35,8 @@ protected:
     void SaveOptBoolValue(bool val);
     // token
     LPCSTR GetOptTokenValue();
+    // Есть ли консольная команда у текущего рендера (в меню показываются настройки всех рендеров, как в оригинальных ТЧ)
+    bool IsOptAvailable() const;
     const xr_token* GetOptToken();
     void SaveOptTokenValue(const char* val);
 

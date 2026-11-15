@@ -1,0 +1,40 @@
+// R1 water (port of r2\water.ps without soft water)
+#include "common.h"
+
+uniform sampler2D	s_nmap;
+uniform samplerCUBE	s_env0;
+uniform samplerCUBE	s_env1;
+
+struct v2p
+{
+	float2	tbase	: TEXCOORD0;
+	float2	tnorm0	: TEXCOORD1;
+	float2	tnorm1	: TEXCOORD2;
+	float3	v2point	: TEXCOORD3;
+	float3	c0		: COLOR0;
+};
+
+float4 main (v2p I) : COLOR
+{
+	float4	base	= tex2D(s_base, I.tbase);
+	float3	n0		= tex2D(s_nmap, I.tnorm0).xyz;
+	float3	n1		= tex2D(s_nmap, I.tnorm1).xyz;
+	float3	Navg	= n0 + n1 - 1;
+	// water is horizontal: tangent space (x,y,z) -> world (x,z,y)
+	float3	Nw		= normalize(float3(Navg.x, Navg.z, Navg.y));
+
+	float3	v2point	= normalize(I.v2point);
+	float3	vreflect= reflect(v2point, Nw);
+	vreflect.y		= abs(vreflect.y);
+
+	float3	env		= lerp(texCUBE(s_env0, vreflect).rgb, texCUBE(s_env1, vreflect).rgb, L_ambient.w);
+	env				*= env*2;
+
+	float	fresnel	= saturate(dot(vreflect, v2point));
+	float	power	= pow(fresnel, 9);
+	float	amount	= 0.15 + 0.25*power;
+	float3	final	= lerp(env*amount, base.rgb, base.a) * I.c0*2;
+	float	alpha	= 0.75 + 0.25*power;
+
+	return float4(final, alpha);
+}

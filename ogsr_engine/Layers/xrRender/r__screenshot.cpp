@@ -156,6 +156,8 @@ void CRender::ScreenshotImpl(ScreenshotMode mode, LPCSTR name, CMemoryWriter* me
         string64 t_stemp;
         string_path buf;
         sprintf_s(buf, sizeof(buf), "ss_%s_%s_(%s).%s", Core.UserName, timestamp(t_stemp), g_pGameLevel ? g_pGameLevel->name().c_str() : "mainmenu", UsePNG ? "png" : UseTGA ? "bmp" : "jpg");
+        if (name && name[0]) // Именованный скриншот (например, из бенчмарка рендера)
+            sprintf_s(buf, sizeof(buf), "%s.%s", name, UsePNG ? "png" : UseTGA ? "bmp" : "jpg");
 
         ID3DTexture2D* pSaveTex = nullptr;
 
@@ -398,6 +400,8 @@ void CRender::ScreenshotImpl(ScreenshotMode mode, LPCSTR name, CMemoryWriter* me
         string64 t_stemp;
         string_path buf;
         sprintf_s(buf, sizeof(buf), "ss_%s_%s_(%s).%s", Core.UserName, timestamp(t_stemp), g_pGameLevel ? g_pGameLevel->name().c_str() : "mainmenu", UsePNG ? "png" : UseTGA ? "tga" : "jpg");
+        if (name && name[0]) // Именованный скриншот (например, из бенчмарка рендера)
+            sprintf_s(buf, sizeof(buf), "%s.%s", name, UsePNG ? "png" : UseTGA ? "tga" : "jpg");
         ID3DBlob* saved = nullptr;
         CHK_DX(D3DXSaveSurfaceToFileInMemory(&saved, UsePNG ? D3DXIFF_PNG : UseTGA ? D3DXIFF_TGA : D3DXIFF_JPG, pFB, nullptr, nullptr));
         IWriter* fs = FS.w_open("$screenshots$", buf);

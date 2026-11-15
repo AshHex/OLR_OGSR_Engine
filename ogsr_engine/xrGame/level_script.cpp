@@ -475,6 +475,95 @@ void spawn_phantom(const Fvector& position) { Level().spawn_item("m_phantom", po
 
 Fbox get_bounding_volume() { return Level().ObjectSpace.GetBoundingVolume(); }
 
+// --- Бенчмарк рендера (render_bench.script) ---
+#include "../xr_3da/GameMtlLib.h"
+
+// Ищет на статической геометрии уровня точки (центры треугольников), материал которых содержит mtl_mask
+// ("liquid" - любой материал с флагом жидкости, например вода на lvl8_swamp). Точки разнесены минимум на min_dist.
+static xr_vector<Fvector> g_material_points;
+
+// Возвращает число найденных точек, сами точки - level.material_point(0..n-1)
+u32 find_material_points(LPCSTR mtl_mask, u32 max_count, float min_dist)
+{
+
+    CDB::MODEL* M = Level().ObjectSpace.GetStaticModel();
+    const CDB::TRI* tris = M->get_tris();
+    const Fvector* verts = M->get_verts();
+    const int count = M->get_tris_count();
+    const bool by_liquid = !xr_strcmp(mtl_mask, "liquid");
+    const float min_dist_sq = min_dist * min_dist;
+
+    xr_vector<Fvector>& points = g_material_points;
+    points.clear();
+    for (int i = 0; i < count && points.size() < max_count; ++i)
+    {
+        const CDB::TRI& T = tris[i];
+        if (T.material >= GMLib.CountMaterial())
+            continue;
+        const SGameMtl* mtl = GMLib.GetMaterialByIdx(T.material);
+        const bool match = by_liquid ? !!mtl->Flags.test(SGameMtl::flLiquid) : !!strstr(mtl->m_Name.c_str(), mtl_mask);
+        if (!match)
+            continue;
+
+        Fvector c;
+        c.add(verts[T.verts[0]], verts[T.verts[1]]).add(verts[T.verts[2]]).div(3.f);
+
+        bool far_enough = true;
+        for (const Fvector& p : points)
+            if (p.distance_to_sqr(c) < min_dist_sq)
+            {
+                far_enough = false;
+                break;
+            }
+        if (far_enough)
+            points.push_back(c);
+    }
+
+    return (u32)points.size();
+}
+
+Fvector material_point(u32 i) { return i < g_material_points.size() ? g_material_points[i] : Fvector{}; }
+
+// Именованный скриншот: $screenshots$\<name>.png
+void bench_screenshot(LPCSTR name) { ::Render->Screenshot(IRender_interface::SM_NORMAL, name); }
+
+// Папка шейдеров активного рендера без слеша: r1, r2, r3 (R3 и R4 используют r3)
+LPCSTR render_shader_dir()
+{
+    static string16 buf;
+    xr_strcpy(buf, ::Render->getShaderPath());
+    if (const size_t n = xr_strlen(buf))
+        buf[n - 1] = 0;
+    return buf;
+}
+
+int render_generation() { return ::Render->get_generation(); }
+
+// Ввод заблокирован скриптом (катсцены, ролики): бенчмарк ждёт, пока это закончится
+bool input_disabled() { return !!g_bDisableAllInput; }
+
+#include "ActorEffector.h"
+
+// id активных постэффектов (ppe) через запятую: актор и уровень. Бенчмарк ждёт, пока сойдут стартовые затемнения/фильтры.
+LPCSTR active_pp_effectors()
+{
+    static xr_string res;
+    res.clear();
+    auto dump = [](CCameraManager& cm) {
+        for (u32 i = 0, n = cm.PPEffectorsCount(); i < n; ++i)
+        {
+            if (!res.empty())
+                res += ",";
+            res += std::to_string(cm.PPEffectorTypeAt(i));
+        }
+    };
+    if (Actor())
+        dump(Actor()->Cameras());
+    if (g_pGameLevel && (!Actor() || &g_pGameLevel->Cameras() != &Actor()->Cameras()))
+        dump(g_pGameLevel->Cameras());
+    return res.c_str();
+}
+
 void iterate_sounds(LPCSTR prefix, u32 max_count, const CScriptCallbackEx<void>& callback)
 {
     for (int j = 0, N = _GetItemCount(prefix); j < N; ++j)
@@ -987,6 +1076,8 @@ void CLevel::script_register(lua_State* L)
             def("spawn_phantom", spawn_phantom),
 
             def("get_bounding_volume", &get_bounding_volume),
+            def("find_material_points", &find_material_points), def("material_point", &material_point), def("bench_screenshot", &bench_screenshot), def("render_shader_dir", &render_shader_dir),
+            def("render_generation", &render_generation), def("input_disabled", &input_disabled), def("active_pp_effectors", &active_pp_effectors),
 
             def("iterate_sounds", &iterate_sounds1), def("iterate_sounds", &iterate_sounds2), def("physics_world", &physics_world), def("get_snd_volume", &get_snd_volume),
             def("set_snd_volume", &set_snd_volume), def("add_cam_effector", &add_cam_effector), def("add_cam_effector2", &add_cam_effector2),

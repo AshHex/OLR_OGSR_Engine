@@ -25,6 +25,16 @@
 
 xrMemory Memory;
 
+// Рендеры (xrRender_R*.dll) загружаются в xrEngine.exe как отдельные модули. Чтобы объекты, созданные через new
+// в одном модуле, можно было удалять через delete в другом, их operator new/delete перенаправляются сюда -
+// в аллокатор exe (mimalloc). См. Layers/xrRender/xrRender_module_new.cpp
+XRCORE_API void* xr_module_new(size_t n) { return ::operator new(n); }
+XRCORE_API void* xr_module_new_nothrow(size_t n) noexcept { return ::operator new(n, std::nothrow); }
+XRCORE_API void* xr_module_new_aligned(size_t n, size_t al) { return ::operator new(n, std::align_val_t{al}); }
+XRCORE_API void* xr_module_new_aligned_nothrow(size_t n, size_t al) noexcept { return ::operator new(n, std::align_val_t{al}, std::nothrow); }
+XRCORE_API void xr_module_delete(void* p) noexcept { ::operator delete(p); }
+XRCORE_API void xr_module_delete_aligned(void* p, size_t al) noexcept { ::operator delete(p, std::align_val_t{al}); }
+
 void xrMemory::_initialize()
 {
     stat_calls = 0;

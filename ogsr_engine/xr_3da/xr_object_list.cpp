@@ -231,6 +231,15 @@ void CObjectList::ProcessDestroyQueue()
 void CObjectList::net_Register(CObject* O)
 {
     R_ASSERT(O);
+    if (const auto it = map_NETID.find(O->ID()); it != map_NETID.end())
+    {
+        // Кто держит ID: обычно это клиентский объект, который сервер уже удалил (например, предмет из инвентаря НПС,
+        // удалённого скриптом), а его ID успели выдать новому объекту.
+        const CObject* old = it->second;
+        const CObject* old_parent = old ? old->H_Parent() : nullptr;
+        Msg("! [%s] ID[%u] is held by client object [%s] (section [%s], parent [%s] ID[%u], destroy flag %d)", __FUNCTION__, O->ID(), old ? old->cName().c_str() : "?",
+            old ? old->cNameSect().c_str() : "?", old_parent ? old_parent->cName().c_str() : "none", old_parent ? old_parent->ID() : u32(-1), old ? old->getDestroy() : -1);
+    }
     ASSERT_FMT(map_NETID.find(O->ID()) == map_NETID.end(), "%s ID[%u] already registered", O->cName().c_str(), O->ID());
     map_NETID.insert(mk_pair(O->ID(), O));
     // Msg			("-------------------------------- Register: %s",O->cName());

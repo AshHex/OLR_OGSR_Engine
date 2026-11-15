@@ -10,7 +10,9 @@
 #if defined(USE_DX10) || defined(USE_DX11)
 #include "../xrRenderDX10/dx10R_Backend_Runtime.h"
 #include "../xrRenderDX10/StateManager/dx10State.h"
-#endif
+#else //	USE_DX10
+#include "../xrRenderDX9/dx9R_Backend_Runtime.h"
+#endif //	USE_DX10
 
 IC void R_xforms::set_c_w(R_constant* C)
 {

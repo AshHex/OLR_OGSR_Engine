@@ -126,6 +126,9 @@ public:
     CEffectorPP* GetPPEffector(EEffectorPPType type);
     CEffectorPP* AddPPEffector(CEffectorPP* ef);
     void RemovePPEffector(EEffectorPPType type);
+    // Для бенчмарка рендера: активные постэффекты (ppe), чтобы не снимать кадры под стартовыми затемнениями/фильтрами
+    u32 PPEffectorsCount() const { return (u32)m_EffectorsPP.size(); }
+    int PPEffectorTypeAt(u32 i) const;
 
     IC Fvector Position() const { return m_cam_info.p; }
     IC Fvector Direction() const { return m_cam_info.d; }

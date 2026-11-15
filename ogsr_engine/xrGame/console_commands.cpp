@@ -938,6 +938,29 @@ struct CCC_LuaHelp : public IConsole_Command
 
 //#ifndef MASTER_GOLD
 #include "game_graph.h"
+// render_bench [сценарий|stop|list] - встроенный бенчмарк рендера (gamedata\scripts\render_bench.script,
+// настройки в gamedata\config\misc\render_bench.ltx). Отчёт: $logs$\render_bench_<render>_<level>.txt, скриншоты: $screenshots$\bench\...
+struct CCC_RenderBench : public IConsole_Command
+{
+    CCC_RenderBench(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = true; };
+    virtual void Execute(LPCSTR args)
+    {
+        if (!g_pGameLevel || !Level().CurrentEntity())
+        {
+            Msg("! render_bench: load a level first");
+            return;
+        }
+        luabind::functor<void> func;
+        if (!ai().script_engine().functor("render_bench.console_start", func))
+        {
+            Msg("! render_bench: function [render_bench.console_start] not found");
+            return;
+        }
+        func(args ? args : "");
+    }
+    virtual void Info(TInfo& I) { xr_strcpy(I, "[scenario|all|stop|list] - run render benchmark"); }
+};
+
 struct CCC_JumpToLevel : public IConsole_Command
 {
     CCC_JumpToLevel(LPCSTR N) : IConsole_Command(N){};
@@ -1640,6 +1663,7 @@ void CCC_RegisterCommands()
 
     //#ifndef MASTER_GOLD
     CMD1(CCC_JumpToLevel, "jump_to_level");
+    CMD1(CCC_RenderBench, "render_bench");
     CMD1(CCC_Giveinfo, "give_info_portion");
     CMD1(CCC_Disinfo, "disable_info_portion");
     CMD1(CCC_Spawn, "g_spawn");

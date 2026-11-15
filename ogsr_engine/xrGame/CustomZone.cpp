@@ -1430,6 +1430,10 @@ void CCustomZone::enter_Zone(SZoneObjectInfo& io) { callback(GameObject::eZoneEn
 void CCustomZone::exit_Zone(SZoneObjectInfo& io)
 {
     StopObjectIdleParticles(io.object);
+    // Из net_Destroy зона уже уничтожена: lua_game_object() для неё ругается "trying to use a destroyed object"
+    // (например, при удалении аномалии скриптом, когда в ней кто-то стоит). Скриптовый колбэк выхода в этом случае не зовём.
+    if (getDestroy() || io.object->getDestroy())
+        return;
     callback(GameObject::eZoneExit)(lua_game_object(), io.object->lua_game_object());
 }
 

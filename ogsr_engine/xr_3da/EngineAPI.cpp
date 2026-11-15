@@ -154,6 +154,13 @@ void CEngineAPI::Initialize()
         g_current_renderer = 1;
     }
 #endif
+
+    // Рендер подключается явно: в DllMain рендеров ничего не регистрируется, т.к. при построении
+    // списка рендеров (CreateRendererList) они загружаются и сразу выгружаются.
+    using AttachRenderFunc = void();
+    auto attach_render = reinterpret_cast<AttachRenderFunc*>(GetProcAddress(hRender, "AttachRender"));
+    ASSERT_FMT(attach_render, "!![%s] Render module has no AttachRender export!", __FUNCTION__);
+    attach_render();
 #endif
 
     Device.ConnectToRender();

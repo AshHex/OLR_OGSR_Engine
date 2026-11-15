@@ -51,6 +51,21 @@ constexpr xr_token qssao_token[] = {{"st_opt_off", 0},
                                     {"st_opt_high", 3},
                                     {0, 0}};
 
+#if RENDER == R_R2 || RENDER == R_R3
+u32 ps_r_ssao_mode = 1;
+constexpr xr_token qssao_mode_token[] = {{"disabled", 0}, {"default", 1}, {"hdao", 2}, {"hbao", 3}, {0, 0}};
+
+Flags32 ps_r2_ssao_flags = {R2FLAGEXT_SSAO_BLUR | R2FLAGEXT_SSAO_HALF_DATA};
+#endif
+
+#if RENDER == R_R2
+// Модель освещения шейдеров OLR-SOP. Значения по умолчанию - из gamedata\config\default_options.ltx OLR-SOP
+float ps_r2_spec_fresnel = 1.f;
+float ps_r2_spec_scale = 1.f;
+float ps_r2_spec_pow_min = 4.f;
+float ps_r2_spec_pow_max = 512.f;
+#endif
+
 u32 ps_r_sun_quality = 1; //	=	0;
 constexpr xr_token qsun_quality_token[] = {{"st_opt_low", 0},
                                            {"st_opt_medium", 1},
@@ -134,7 +149,7 @@ Flags32 ps_r2_ls_flags = {R2FLAG_SUN
                           | R2FLAG_EXP_DONT_TEST_UNSHADOWED | R2FLAG_USE_NVSTENCIL | R2FLAG_EXP_SPLIT_SCENE | R2FLAG_EXP_MT_CALC | R3FLAG_DYN_WET_SURF |
                           R3FLAG_VOLUMETRIC_SMOKE
                           //| R3FLAG_MSAA
-                          | R3FLAG_MSAA_OPT | R3FLAG_GBUFFER_OPT |  R2FLAG_STEEP_PARALLAX |
+                          | R3FLAG_MSAA_OPT | R3FLAG_GBUFFER_OPT | R2FLAG_SOFT_PARTICLES | R2FLAG_SOFT_WATER | R2FLAG_STEEP_PARALLAX |
                           R2FLAG_SUN_FOCUS | R2FLAG_SUN_TSM | R2FLAG_TONEMAP | R2FLAG_VOLUMETRIC_LIGHTS}; // r2-only
 
 Flags32 ps_r2_ls_flags_ext = {
@@ -240,6 +255,54 @@ u32 psCurrentBPP = 32;
 #endif //	USE_DX10
 
 //-----------------------------------------------------------------------
+#if RENDER == R_R2 || RENDER == R_R3
+class CCC_SSAO_Mode : public CCC_Token
+{
+public:
+    CCC_SSAO_Mode(LPCSTR N, u32* V, const xr_token* T) : CCC_Token(N, V, T){};
+
+    virtual void Execute(LPCSTR args)
+    {
+        CCC_Token::Execute(args);
+
+        switch (*value)
+        {
+        case 0: {
+            ps_r_ssao = 0;
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HBAO, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HDAO, 0);
+            break;
+        }
+        case 1: {
+            if (ps_r_ssao == 0)
+                ps_r_ssao = 1;
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HBAO, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HDAO, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HALF_DATA, 0);
+            break;
+        }
+        case 2: {
+            if (ps_r_ssao == 0)
+                ps_r_ssao = 1;
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HBAO, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HDAO, 1);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_OPT_DATA, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HALF_DATA, 0);
+            break;
+        }
+        case 3: {
+            if (ps_r_ssao == 0)
+                ps_r_ssao = 1;
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HBAO, 1);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_HDAO, 0);
+            ps_r2_ssao_flags.set(R2FLAGEXT_SSAO_OPT_DATA, 1);
+            break;
+        }
+        }
+    }
+};
+#endif
+
 class CCC_detail_radius : public CCC_Integer
 {
 public:
@@ -402,6 +465,18 @@ public:
         strconcat(sizeof(cmd), cmd, "cfg_load", " ", _cfg);
         Console->Execute(cmd);
     }
+};
+
+#include "r__shader_audit.h"
+
+// r_shader_audit [nomesh] - отчёт о недостающих шейдерах/текстурах для текущего рендера и папок r1/r2/r3
+// ($logs$\shader_audit_<render>.txt). Используется бенчмарком рендера (render_bench.script).
+class CCC_ShaderAudit : public IConsole_Command
+{
+public:
+    CCC_ShaderAudit(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = true; };
+    virtual void Execute(LPCSTR args) { RAudit_Run(!strstr(args, "nomesh")); }
+    virtual void Info(TInfo& I) { xr_strcpy(I, "[nomesh] - write missing shaders/textures report to $logs$"); }
 };
 
 class CCC_memory_stats : public IConsole_Command
@@ -659,10 +734,9 @@ void xrRender_initconsole()
 
     Fvector tw_min, tw_max;
 
-#if RENDER == R_R2
-    // Texture manager
+    // Texture manager. Качество текстур есть на всех рендерах (psTextureLOD используется при загрузке текстур везде),
+    // как в оригинальных Тенях Чернобыля - настройка "Качество текстур" в меню доступна на любом рендере.
     CMD4(CCC_Integer, "texture_lod", &psTextureLOD, 0, 4);
-#endif
 
     CMD4(CCC_Float, "r__geometry_lod", &ps_r__LOD, 1.f, 3.f); // AVO: extended from 1.2f to 3.f
     //.	CMD4(CCC_Float,		"r__geometry_lod_pow",	&ps_r__LOD_Power,			0,		2		);
@@ -860,6 +934,25 @@ void xrRender_initconsole()
 
     CMD3(CCC_Token, "r2_ssao", &ps_r_ssao, qssao_token);
 
+#if RENDER == R_R2 || RENDER == R_R3
+    CMD3(CCC_SSAO_Mode, "r2_ssao_mode", &ps_r_ssao_mode, qssao_mode_token);
+    CMD3(CCC_Mask, "r2_ssao_blur", &ps_r2_ssao_flags, R2FLAGEXT_SSAO_BLUR); // Need restart
+    CMD3(CCC_Mask, "r2_ssao_opt_data", &ps_r2_ssao_flags, R2FLAGEXT_SSAO_OPT_DATA); // Need restart
+    CMD3(CCC_Mask, "r2_ssao_half_data", &ps_r2_ssao_flags, R2FLAGEXT_SSAO_HALF_DATA); // Need restart
+    CMD3(CCC_Mask, "r2_ssao_hbao", &ps_r2_ssao_flags, R2FLAGEXT_SSAO_HBAO); // Need restart
+    CMD3(CCC_Mask, "r2_ssao_hdao", &ps_r2_ssao_flags, R2FLAGEXT_SSAO_HDAO); // Need restart
+    //	Igor: need restart
+    CMD3(CCC_Mask, "r2_soft_water", &ps_r2_ls_flags, R2FLAG_SOFT_WATER);
+    CMD3(CCC_Mask, "r2_soft_particles", &ps_r2_ls_flags, R2FLAG_SOFT_PARTICLES);
+#endif
+
+#if RENDER == R_R2
+    CMD4(CCC_Float, "r2_spec_fresnel", &ps_r2_spec_fresnel, 0.f, 4.f);
+    CMD4(CCC_Float, "r2_spec_scale", &ps_r2_spec_scale, 0.f, 4.f);
+    CMD4(CCC_Float, "r2_spec_pow_min", &ps_r2_spec_pow_min, 1.f, 64.f);
+    CMD4(CCC_Float, "r2_spec_pow_max", &ps_r2_spec_pow_max, 16.f, 4096.f);
+#endif
+
     CMD3(CCC_Mask, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION); // Need restart
     CMD3(CCC_Mask, "r4_wireframe", &ps_r2_ls_flags_ext, R2FLAGEXT_WIREFRAME); // Need restart
     CMD3(CCC_Mask, "r2_steep_parallax", &ps_r2_ls_flags, R2FLAG_STEEP_PARALLAX);
@@ -904,6 +997,7 @@ void xrRender_initconsole()
 
     CMD3(CCC_Mask, "r3_volumetric_smoke", &ps_r2_ls_flags, R3FLAG_VOLUMETRIC_SMOKE);
     CMD1(CCC_memory_stats, "render_memory_stats");
+    CMD1(CCC_ShaderAudit, "r_shader_audit");
 
     // Screen Space Shaders
     CMD4(CCC_Float, "ssfx_wpn_dof_2", &ps_ssfx_wpn_dof_2, 0, 1);

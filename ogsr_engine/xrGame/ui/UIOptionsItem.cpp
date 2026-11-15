@@ -24,6 +24,8 @@ LPCSTR CUIOptionsItem::GetOptStringValue() { return Console->GetString(m_entry.c
 
 void CUIOptionsItem::SaveOptStringValue(const char* val)
 {
+    if (!IsOptAvailable())
+        return; // настройка другого рендера
     xr_string command = m_entry;
     command += " ";
     command += val;
@@ -34,6 +36,8 @@ void CUIOptionsItem::GetOptIntegerValue(int& val, int& min, int& max) { val = Co
 
 void CUIOptionsItem::SaveOptIntegerValue(int val)
 {
+    if (!IsOptAvailable())
+        return; // настройка другого рендера
     string512 command;
     sprintf_s(command, "%s %d", m_entry.c_str(), val);
     Console->Execute(command);
@@ -43,6 +47,8 @@ void CUIOptionsItem::GetOptFloatValue(float& val, float& min, float& max) { val 
 
 void CUIOptionsItem::SaveOptFloatValue(float val)
 {
+    if (!IsOptAvailable())
+        return; // настройка другого рендера
     string512 command;
     sprintf_s(command, "%s %f", m_entry.c_str(), val);
     Console->Execute(command);
@@ -57,6 +63,8 @@ bool CUIOptionsItem::GetOptBoolValue()
 
 void CUIOptionsItem::SaveOptBoolValue(bool val)
 {
+    if (!IsOptAvailable())
+        return; // настройка другого рендера
     string512 command;
     // sprintf_s(command, "%s %s", m_entry.c_str(), (val) ? "on" : "off");
     sprintf_s(command, "%s %s", m_entry.c_str(), (val) ? "1" : "0");
@@ -65,10 +73,18 @@ void CUIOptionsItem::SaveOptBoolValue(bool val)
 
 LPCSTR CUIOptionsItem::GetOptTokenValue() { return Console->GetToken(m_entry.c_str()); }
 
+bool CUIOptionsItem::IsOptAvailable() const { return Console->GetCommand(m_entry.c_str()) != nullptr; }
+
 const xr_token* CUIOptionsItem::GetOptToken()
 {
     const auto* token = Console->GetXRToken(m_entry.c_str());
-    ASSERT_FMT(token, "Can't find token [%s]", m_entry.c_str());
+    if (!token)
+    {
+        // Команды нет у текущего рендера (например r2_ssao_mode на R4) - раньше это был вылет при открытии настроек.
+        // Контрол остаётся пустым и недоступным (скрипт меню блокирует его по выбранному рендеру).
+        static const xr_token empty_token[] = {{nullptr, 0}};
+        return empty_token;
+    }
     return token;
 }
 

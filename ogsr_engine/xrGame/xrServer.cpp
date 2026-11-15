@@ -664,3 +664,26 @@ void xrServer::GetServerInfo(CServerInfo* si)
 
     si->AddItem("Game type", tmp256, RGB(128, 255, 255));
 }
+
+// Свободный ID, который ещё занят объектом на клиенте (сервер уже удалил объект, а клиент - ещё нет, например предмет
+// из инвентаря НПС после работы ALife), раньше выдавался новому объекту, и игра вылетала в CObjectList::net_Register
+// ("... ID[...] already registered"). Такие ID пропускаем и возвращаем в пул позже.
+u16 xrServer::PerformIDgen(u16 ID)
+{
+    if (ID != 0xffff || !g_pGameLevel)
+        return m_tID_Generator.tfGetID(ID);
+
+    u16 busy[64];
+    u32 busy_count = 0;
+    u16 id = m_tID_Generator.tfGetID(0xffff);
+    while (busy_count < std::size(busy) && Level().Objects.net_Find(id))
+    {
+        const CObject* O = Level().Objects.net_Find(id);
+        Msg("! [%s] ID[%u] is still used by client object [%s] - skipped", __FUNCTION__, id, O->cName().c_str());
+        busy[busy_count++] = id;
+        id = m_tID_Generator.tfGetID(0xffff);
+    }
+    for (u32 i = 0; i < busy_count; ++i)
+        m_tID_Generator.vfFreeID(busy[i], Device.TimerAsync());
+    return id;
+}

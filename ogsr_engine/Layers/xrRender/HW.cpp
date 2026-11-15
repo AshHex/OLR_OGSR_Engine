@@ -180,7 +180,7 @@ void CHW::DestroyDevice()
 #endif
 }
 
-ENGINE_API void GetMonitorResolution(u32& horizontal, u32& vertical)
+static void GetMonitorResolution(u32& horizontal, u32& vertical)
 {
     HMONITOR hMonitor = MonitorFromWindow(Device.m_hWnd, MONITOR_DEFAULTTOPRIMARY);
 
@@ -508,9 +508,7 @@ u32 CHW::selectGPU()
 
 u32 CHW::selectRefresh(u32 dwWidth, u32 dwHeight, D3DFORMAT fmt)
 {
-    if (psDeviceFlags.is(rsRefresh60hz))
-        return D3DPRESENT_RATE_DEFAULT;
-    else
+    // Опция rsRefresh60hz удалена из движка (как и в dx10HW.cpp) - всегда выбираем максимальную частоту
     {
         u32 selected = D3DPRESENT_RATE_DEFAULT;
         u32 count = pD3D->GetAdapterModeCount(DevAdapter, fmt);

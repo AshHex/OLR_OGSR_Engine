@@ -1,0 +1,21 @@
+#include "common.h"
+
+struct 	v2p
+{
+ 	float2 	tc0		: TEXCOORD0;	// base
+	float4 c0		: COLOR0;
+};
+
+uniform float4 c_screen_res;
+uniform float4 c_screen_params;
+#define TAR float(c_screen_res.x/c_screen_res.y)	//texture aspect ratio
+//////////////////////////////////////////////////////////////////////////////////////////
+// Pixel
+float4 	main	( v2p I )	: COLOR
+{
+	float2 tc = I.tc0;
+	float x = 1/(c_screen_params.y*TAR);
+	tc.x = tc.x*x + 0.5*(1 - x);
+	float4 col = tex2D	(s_base,tc);
+	return I.c0*col;
+}

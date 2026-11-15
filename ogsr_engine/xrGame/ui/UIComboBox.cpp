@@ -115,6 +115,13 @@ void CUIComboBox::OnListItemSelect()
 void CUIComboBox::SetCurrentValue()
 {
     m_list.Clear();
+    if (!IsOptAvailable())
+    {
+        // Настройка другого рендера: пустой список, значение не трогаем
+        m_text.SetText("");
+        m_itoken_id = 0;
+        return;
+    }
     const xr_token* tok = GetOptToken();
 
     while (tok->name)
@@ -136,6 +143,8 @@ void CUIComboBox::SetCurrentValue()
 
 void CUIComboBox::SaveValue()
 {
+    if (!IsOptAvailable())
+        return; // настройка другого рендера
     CUIOptionsItem::SaveValue();
     const xr_token* tok = GetOptToken();
     const char* cur_val = tok[m_itoken_id].name;
