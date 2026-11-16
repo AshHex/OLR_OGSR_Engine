@@ -297,6 +297,9 @@ public:
 
     virtual u32 active_phase() const = 0;
 
+    // Есть ли партикл (эффект или группа) - model_CreateParticles на несуществующем имени вылетает (бенчмарк рендера)
+    virtual bool model_ParticlesExist(LPCSTR name) = 0;
+
     // Constructor/destructor
     virtual ~IRender_interface();
 

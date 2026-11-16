@@ -48,10 +48,11 @@ function opt_video:InitControls(x, y, xml, handler)
 	local btn = xml:InitComboBox("tab_video:list_presets", self)
 	handler:Register(btn, "combo_preset")
 
+	-- Выбор рендера, как в оригинальных Тенях Чернобыля. Смена рендера применяется после перезапуска игры (рендер - отдельная DLL),
+	-- а расширенные настройки, которых нет у выбранного рендера, становятся недоступны (options_dialog:OnRendererChanged).
 	xml:InitStatic("tab_video:cap_renderer", self)
-	local btn = xml:InitComboBox("tab_video:list_renderer", self)
-	handler:Register(btn, "tab_video:list_renderer")
-	handler:AddCallback( "tab_video:list_renderer", ui_events.LIST_ITEM_SELECT, handler.show_need_restart_wnd, handler )
+	self.combo_renderer = xml:InitComboBox("tab_video:list_renderer", self)
+	handler:Register(self.combo_renderer, "combo_renderer")
 
 	local btn = xml:Init3tButton("tab_video:btn_advanced", self)	
 	handler:Register(btn, "btn_advanced_graphic")	

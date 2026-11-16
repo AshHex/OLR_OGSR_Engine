@@ -1,0 +1,1145 @@
+-- ============================================================================
+-- Встроенный бенчмарк рендера.
+-- Запуск: консольная команда render_bench [сценарии|all|list|stop] на загруженном уровне.
+-- Настройки: gamedata\config\misc\render_bench.ltx
+-- Отчёт: $logs$\render_bench_<рендер>_<уровень>.txt, скриншоты: $screenshots$\bench\<рендер>\<уровень>\
+--
+-- Сценарии:
+--   panorama   - круговой обзор в точках по всему уровню (геометрия, LOD, детали, тени, туман)
+--   timeofday  - смена времени суток: скайбокс, солнце, звёзды, освещение
+--   weather    - погодные циклы и погодные эффекты (выброс)
+--   npc        - НПС и мутанты днём и ночью (скиннинг, шейдеры моделей, тени)
+--   fire       - партиклы огня/дыма (мягкие частицы, дисторшн, блендинг)
+--   anomalies  - аномалии (зоны + их партиклы, дисторшн)
+--   hud        - худовые анимации, прицеливание, фонарик, ПНВ, ноги от 1-го лица
+--   water      - вода (точки ищутся по материалу геометрии; для болот - lvl8_swamp)
+--   occlusion  - пары кадров с MOC/Hi-Z и без (ищем пропадающие объекты)
+--   flythrough - пролёт над уровнем, замер производительности
+--   shaders    - отчёт о недостающих шейдерах/текстурах (r_shader_audit)
+-- ============================================================================
+
+local CFG_FILE = "misc\\render_bench.ltx"
+local ALL_SCENARIOS = {"panorama", "timeofday", "weather", "npc", "fire", "anomalies", "hud", "water", "occlusion", "flythrough", "shaders", "menu"}
+
+local ini = nil
+local co = nil              -- корутина бенчмарка
+local stop_requested = false
+local samples = nil         -- времена кадров (мс) во время замера
+
+local report = {}           -- строки отчёта
+local warnings = {}
+local totals = {}           -- сводка по сценариям
+local shot_idx = 0
+local render_name = "r?"
+local level_name = "level"
+
+local spawned_ids = {}
+-- НПС и мутанты удаляются только в конце бенчмарка: удаление онлайн-существа с инвентарём посреди теста
+-- приводило к вылету "ID already registered" при следующем спавне
+local deferred_ids = {}
+local particles = {}
+local saved = nil
+
+local G = {}                -- [general]
+
+-- Свой генератор случайных чисел: одинаковые точки на всех рендерах, независимо от других скриптов
+local rng_state = 1
+local function rng_seed(s) rng_state = s end
+local function rng(lo, hi)
+	rng_state = math.mod(rng_state * 1103515245 + 12345, 2147483648)
+	return lo + math.mod(rng_state, hi - lo + 1)
+end
+
+-- ---------------------------------------------------------------------------
+-- Утилиты
+-- ---------------------------------------------------------------------------
+local function out(fmt, ...)
+	local s = string.format(fmt, ...)
+	table.insert(report, s)
+	log1("[render_bench] " .. s)
+end
+
+local function warn(fmt, ...)
+	local s = string.format(fmt, ...)
+	table.insert(warnings, s)
+	out("WARNING: %s", s)
+end
+
+local function trim(s) return (string.gsub(s, "^%s*(.-)%s*$", "%1")) end
+
+local function split(s)
+	local t = {}
+	if not s then return t end
+	for item in string.gmatch(s, "[^,]+") do
+		item = trim(item)
+		if item ~= "" then table.insert(t, item) end
+	end
+	return t
+end
+
+local function cfg_str(sect, key, def)
+	if ini and ini:section_exist(sect) and ini:line_exist(sect, key) then
+		local v = ini:r_string(sect, key)
+		if v then return trim(v) end
+	end
+	return def
+end
+
+local function cfg_num(sect, key, def)
+	local v = cfg_str(sect, key, nil)
+	return v and tonumber(v) or def
+end
+
+local function cfg_bool(sect, key, def)
+	local v = cfg_str(sect, key, nil)
+	if v == nil then return def end
+	return v == "true" or v == "1" or v == "on" or v == "yes"
+end
+
+local function cfg_list(sect, key, def)
+	local v = cfg_str(sect, key, nil)
+	if v == nil then return def or {} end
+	return split(v)
+end
+
+local function cfg_nums(sect, key, def)
+	local t = {}
+	for _, v in ipairs(cfg_list(sect, key, def)) do
+		local n = tonumber(v)
+		if n then table.insert(t, n) end
+	end
+	return t
+end
+
+local function now() return device():time_global() end
+
+local function wait(ms)
+	local t = now() + ms
+	repeat
+		coroutine.yield()
+		if stop_requested then error("stopped by user", 0) end
+	until now() >= t
+end
+
+local function wait_frames(n)
+	for i = 1, n do
+		coroutine.yield()
+		if stop_requested then error("stopped by user", 0) end
+	end
+end
+
+-- Задачи, которые нужно выполнить в основном потоке (вне корутины), например работа с окнами UI
+local main_tasks = {}
+function on_main(fn)
+	local done, res = false, nil
+	table.insert(main_tasks, function()
+		local ok, r = pcall(fn)
+		if ok then res = r else log1("[render_bench] main-thread task failed: " .. tostring(r)) end
+		done = true
+	end)
+	repeat
+		coroutine.yield()
+		if stop_requested then error("stopped by user", 0) end
+	until done
+	return res
+end
+
+local function console_exec(cmd) get_console():execute(cmd) end
+
+local function safe_name(s)
+	return (string.gsub(s, "[^%w_%-]", "_"))
+end
+
+-- ---------------------------------------------------------------------------
+-- Камера / время / погода
+-- ---------------------------------------------------------------------------
+local function look_dir(h, p) return vector():set(h, p, 0) end
+
+local function set_cam(pos, h, p, hud)
+	level.set_cam_custom_position_direction(pos, look_dir(h, p), 1, hud and true or false, false)
+end
+
+local function cam_look_at(pos, target, hud)
+	local d = vector():set(target):sub(pos)
+	if d:magnitude() < 0.001 then d = vector():set(0, 0, 1) end
+	d:normalize()
+	set_cam(pos, d:getH(), d:getP(), hud)
+end
+
+local function release_cam() level.remove_cam_custom_position_direction() end
+
+local function lock_weather_manager()
+	local wm = level_weathers and level_weathers.get_weather_manager and level_weathers.get_weather_manager()
+	if wm then wm.last_hour = level.get_time_hours() end
+end
+
+local function set_hour(h)
+	local cur = level.get_time_hours() * 60 + level.get_time_minutes()
+	local delta = math.mod((h * 60 - cur) + 1440 * 2, 1440)
+	local w = level.get_weather()
+	if delta > 0 then
+		level.change_game_time(0, math.floor(delta / 60), math.mod(delta, 60))
+	end
+	-- Время окружения обновляется только на следующих кадрах. Если перевыбрать погоду сразу, берутся дескрипторы
+	-- старого часа и потом несколько игровых минут идёт переход (тёмные/красные/пурпурные кадры).
+	wait_frames(3)
+	level.set_weather(w, true)
+	lock_weather_manager()
+	pcall(function() level.environment():ForceReselectEnvs() end)
+	wait_frames(3)
+	clear_pp(0)
+	pcall(function() level.environment():ForceReselectEnvs() end)
+	wait(G.env_settle or 4000)
+end
+
+local function set_weather(name)
+	level.set_weather(name, true)
+	lock_weather_manager()
+	pcall(function() level.environment():ForceReselectEnvs() end)
+	wait(G.env_settle or 8000)
+end
+
+-- ---------------------------------------------------------------------------
+-- Замеры и скриншоты
+-- ---------------------------------------------------------------------------
+local function measure(ms)
+	samples = {}
+	wait(ms or G.measure_time)
+	local s = samples
+	samples = nil
+	local n = table.getn(s)
+	if n == 0 then return {fps = 0, low = 0, max_ms = 0, hitches = 0, frames = 0} end
+	local sum, max_ms, hitches = 0, 0, 0
+	for i = 1, n do
+		sum = sum + s[i]
+		if s[i] > max_ms then max_ms = s[i] end
+		if s[i] > G.hitch_ms then hitches = hitches + 1 end
+	end
+	table.sort(s)
+	local p99 = s[math.max(1, math.floor(n * 0.99))]
+	local avg_ms = sum / n
+	return {fps = avg_ms > 0 and 1000 / avg_ms or 0, low = p99 > 0 and 1000 / p99 or 0, max_ms = max_ms, hitches = hitches, frames = n}
+end
+
+local function add_total(scn, st)
+	local t = totals[scn]
+	if not t then
+		t = {n = 0, fps = 0, min_fps = 100000, hitches = 0}
+		totals[scn] = t
+	end
+	t.n = t.n + 1
+	t.fps = t.fps + st.fps
+	if st.fps < t.min_fps then t.min_fps = st.fps end
+	t.hitches = t.hitches + st.hitches
+end
+
+local function shot(scn, tag)
+	shot_idx = shot_idx + 1
+	local name = string.format("bench\\%s\\%s\\%03d_%s_%s", render_name, level_name, shot_idx, scn, safe_name(tag))
+	level.bench_screenshot(name)
+	wait_frames(2)
+	return name
+end
+
+-- Замер + скриншот + строка в отчёт
+local function sample(scn, tag, no_shot)
+	wait_scene_free()
+	wait(G.settle_time)
+	local st = measure()
+	local name = no_shot and "-" or shot(scn, tag)
+	out("[%s] %-40s avg %6.1f fps | 1%% low %6.1f | max frame %5.0f ms | hitches %d | %s", scn, tag, st.fps, st.low, st.max_ms, st.hitches, name)
+	if st.fps > 0 and st.fps < G.low_fps then warn("[%s] %s: low fps %.1f", scn, tag, st.fps) end
+	if st.hitches > 0 then warn("[%s] %s: %d frames longer than %d ms (max %.0f ms)", scn, tag, st.hitches, G.hitch_ms, st.max_ms) end
+	add_total(scn, st)
+	return st
+end
+
+-- ---------------------------------------------------------------------------
+-- Точки уровня
+-- ---------------------------------------------------------------------------
+-- Равномерно разнесённые точки AI-сетки уровня
+local function level_points(count)
+	local vcount = level.vertex_count()
+	local res = {}
+	if vcount == 0 then return res end
+	local candidates = {}
+	local tries = math.min(vcount, 4000)
+	for i = 1, tries do
+		local id = rng(0, vcount - 1)
+		table.insert(candidates, level.vertex_position(id))
+	end
+	-- жадный выбор самой удалённой от уже выбранных точки
+	table.insert(res, candidates[1])
+	while table.getn(res) < count do
+		local best, best_d = nil, -1
+		for _, c in ipairs(candidates) do
+			local md = 1e9
+			for _, r in ipairs(res) do
+				local d = c:distance_to_sqr(r)
+				if d < md then md = d end
+			end
+			if md > best_d then best, best_d = c, md end
+		end
+		if not best or best_d < 1 then break end
+		table.insert(res, best)
+	end
+	return res
+end
+
+local function ground_at(pos)
+	local lvid = level.vertex_id(pos)
+	if lvid and level.valid_vertex_id(lvid) then
+		return level.vertex_position(lvid), lvid
+	end
+	return vector():set(pos), db.actor:level_vertex_id()
+end
+
+-- Актор по умолчанию стоит на месте (teleport_actor = false): телепорты задевают сюжетные рестрикторы с катсценами/роликами.
+-- Летает только камера; объекты для тестов спавнятся рядом с актором.
+local function teleport_actor(pos)
+	if not G.teleport then return end
+	db.actor:set_actor_position(vector():set(pos.x, pos.y + 0.3, pos.z))
+	wait(300)
+end
+
+-- Открытое небо над точкой и свободно по направлению h (там спавнятся объекты тестов)
+local function is_open(pos, h, dist)
+	local up = level.ray_query(vector():set(pos.x, pos.y + 2, pos.z), vector():set(0, 1, 0), 80, rq_target.rqtStatic, db.actor)
+	if up.result then return false end
+	local o = vector():set(pos.x, pos.y + 1.2, pos.z)
+	for _, side in ipairs({-7, 0, 7}) do
+		local from = vector():set(o):mad(vector():setHP(h + math.pi / 2, 0), side):mad(vector():setHP(h, 0), -3)
+		local r = level.ray_query(from, vector():setHP(h, 0), dist + 6, rq_target.rqtStatic, db.actor)
+		if r.result then return false end
+	end
+	return true
+end
+
+-- Без телепорта: открытая точка в радиусе онлайна вокруг актора (актор может стоять в помещении)
+local spawn_base_cache = nil
+local function spawn_base()
+	if spawn_base_cache then return spawn_base_cache end
+	local a = db.actor:position()
+	for i = 1, 400 do
+		local r = 12 + rng(0, 70)
+		local ang = rng(0, 359) * math.pi / 180
+		local probe = vector():set(a.x + r * math.cos(ang), a.y, a.z + r * math.sin(ang))
+		local lvid = level.vertex_id(probe)
+		if lvid and level.valid_vertex_id(lvid) then
+			local p = level.vertex_position(lvid)
+			if p:distance_to(a) < 100 and is_open(p, 0.3, 10) then
+				spawn_base_cache = p
+				out("spawn point for npc/fire/anomalies: %.1f %.1f %.1f (%.0f m from actor)", p.x, p.y, p.z, p:distance_to(a))
+				return p
+			end
+		end
+	end
+	warn("no open spawn point near the actor - using actor position")
+	spawn_base_cache = a
+	return a
+end
+
+local function base_point(pts, i)
+	if not G.teleport then return spawn_base() end
+	return pts[i] or pts[1] or db.actor:position()
+end
+
+-- Постэффекты (ppe): стартовые затемнения/фильтры, эффекты ранений, выброса и т.п. портят кадры.
+-- Постэффекты из [general] keep_pp (по умолчанию 999 - постэффект уровня из level_weathers) не трогаем.
+local pp_warned = {}
+local function pp_list()
+	local t = {}
+	for id in string.gmatch(level.active_pp_effectors() or "", "[^,]+") do
+		local n = tonumber(id)
+		if n and not G.keep_pp[n] then table.insert(t, n) end
+	end
+	return t
+end
+
+function clear_pp(max_wait_ms)
+	local t0 = now()
+	while table.getn(pp_list()) > 0 and now() - t0 < max_wait_ms do wait(250) end
+	local left = pp_list()
+	for _, id in ipairs(left) do
+		if not pp_warned[id] then
+			warn("post-process effector %d is active - removed for the benchmark", id)
+			pp_warned[id] = true
+		end
+		level.remove_pp_effector(id)
+	end
+	if table.getn(left) > 0 then wait(1500) end
+end
+
+-- Идёт ролик/катсцена/открыт диалог - ждём, иначе в замер попадут не те кадры
+function scene_busy()
+	return level.input_disabled() or game.has_active_tutorial() or level.main_input_receiver() ~= nil
+end
+
+function wait_scene_free()
+	local reported = false
+	while scene_busy() do
+		if not reported then
+			out("waiting for cutscene/video/dialog to finish...")
+			reported = true
+		end
+		wait(500)
+	end
+end
+
+local function eye(pos) return vector():set(pos.x, pos.y + G.eye_height, pos.z) end
+
+-- позиция перед камерой на расстоянии dist по направлению h
+local function in_front(origin, h, dist, side)
+	local d = vector():setHP(h, 0)
+	local r = vector():setHP(h + math.pi / 2, 0)
+	return vector():set(origin):mad(d, dist):mad(r, side or 0)
+end
+
+-- ---------------------------------------------------------------------------
+-- Спавн
+-- ---------------------------------------------------------------------------
+local function spawn(section, pos)
+	if not (system_ini():section_exist(section)) then
+		warn("section [%s] not found, skipped", section)
+		return nil
+	end
+	local gpos, lvid = ground_at(pos)
+	local se = alife():create(section, gpos, lvid, db.actor:game_vertex_id())
+	if se then table.insert(spawned_ids, se.id) end
+	return se
+end
+
+local function spawn_anomaly(section, pos, radius)
+	-- Визуальные зоны (ZS_BFUZZ и т.п.) берут форму только из редактора уровня; без неё рестриктор зоны спамит
+	-- в лог "FATAL ERROR IN RESTRICTOR". Их пропускаем.
+	if system_ini():section_exist(section) and system_ini():line_exist(section, "visual") then
+		warn("visual zone [%s] can't be spawned by script (no shape) - skipped", section)
+		return nil
+	end
+	local se = spawn(section, pos)
+	-- Визуальные зоны (ZS_BFUZZ и т.п., у секции есть visual) хранят в пакете ещё визуал и анимации - amk.set_anomaly_data их
+	-- не знает и сбивает пакет (вылет "MODEL: can't find cycle"), поэтому форму им не меняем.
+	local amk = rawget(_G, "amk") -- модуль мода (форма зоны в пакете); на ванильных ресурсах зона без формы
+	if se and amk and amk.get_anomaly_data and not system_ini():line_exist(section, "visual") then
+		local ok, err = pcall(function()
+			local t = amk.get_anomaly_data(se)
+			t.shapes = {{shtype = 0, center = vector():set(0, 0, 0), radius = radius}}
+			amk.set_anomaly_data(t, se)
+		end)
+		if not ok then warn("anomaly [%s] shape setup failed: %s", section, tostring(err)) end
+	end
+	return se
+end
+
+local function release_spawned()
+	local sim = alife()
+	for _, id in ipairs(spawned_ids) do
+		local se = sim:object(id)
+		if se then sim:release(se, true) end
+	end
+	spawned_ids = {}
+end
+
+local function defer_spawned()
+	for _, id in ipairs(spawned_ids) do table.insert(deferred_ids, id) end
+	spawned_ids = {}
+end
+
+local function play_particle(name, pos)
+	if level.particle_exists and not level.particle_exists(name) then
+		warn("particle [%s] not found - skipped", name)
+		return nil
+	end
+	local ok, p = pcall(particles_object, name)
+	if not ok or not p then
+		warn("particle [%s] can't be created", name)
+		return nil
+	end
+	p:play_at_pos(pos)
+	table.insert(particles, p)
+	return p
+end
+
+local function stop_particles()
+	for _, p in ipairs(particles) do
+		if p:playing() then p:stop() end
+	end
+	particles = {}
+end
+
+-- ---------------------------------------------------------------------------
+-- Ввод для худовых тестов
+-- ---------------------------------------------------------------------------
+local function action_dik(action)
+	local dik = bind_to_dik(action)
+	if not dik or dik <= 0 then return nil end
+	return dik
+end
+
+local function press(action, hold_ms)
+	local dik = action_dik(action)
+	if not dik then return false end
+	level.send_event_key_press(dik)
+	if hold_ms and hold_ms > 0 then wait(hold_ms) else wait_frames(2) end
+	level.send_event_key_release(dik)
+	return true
+end
+
+-- ---------------------------------------------------------------------------
+-- Сценарии
+-- ---------------------------------------------------------------------------
+local scenarios = {}
+
+function scenarios.panorama()
+	local S = "panorama"
+	local pts = level_points(cfg_num(S, "points", 6))
+	local dirs = cfg_num(S, "directions", 8)
+	local pitch = cfg_num(S, "pitch", -0.05)
+	for i, p in ipairs(pts) do
+		teleport_actor(p)
+		for d = 0, dirs - 1 do
+			local h = d * 2 * math.pi / dirs
+			set_cam(eye(p), h, pitch)
+			sample(S, string.format("pt%d_dir%d", i, d))
+		end
+	end
+end
+
+function scenarios.timeofday()
+	local S = "timeofday"
+	local pts = level_points(3)
+	local p = G.teleport and (pts[2] or pts[1]) or spawn_base()
+	teleport_actor(p)
+	local dirs = cfg_num(S, "directions", 4)
+	for _, hour in ipairs(cfg_nums(S, "hours", {"0", "6", "12", "18", "21"})) do
+		set_hour(hour)
+		for d = 0, dirs - 1 do
+			set_cam(eye(p), d * 2 * math.pi / dirs, 0.1)
+			sample(S, string.format("h%02d_dir%d", hour, d))
+		end
+		if cfg_bool(S, "sky_shot", true) then
+			set_cam(eye(p), 0, 1.2)
+			sample(S, string.format("h%02d_sky", hour))
+		end
+	end
+end
+
+function scenarios.weather()
+	local S = "weather"
+	local pts = level_points(3)
+	local p = G.teleport and (pts[3] or pts[1]) or spawn_base()
+	teleport_actor(p)
+	local list = cfg_list(S, "list", {})
+	if table.getn(list) == 0 then list = {saved.weather} end
+	-- несуществующая погода роняет движок ("Invalid weather name") - пропускаем её
+	local valid = {}
+	for _, w in ipairs(list) do
+		if not level.weather_exists or level.weather_exists(w, false) then
+			table.insert(valid, w)
+		else
+			warn("weather [%s] not found - skipped", w)
+		end
+	end
+	list = valid
+	for _, hour in ipairs(cfg_nums(S, "hours", {"13"})) do
+		set_hour(hour)
+		for _, w in ipairs(list) do
+			set_weather(w)
+			wait(1000)
+			set_cam(eye(p), 0, 0.15)
+			sample(S, string.format("%s_h%02d_horizon", w, hour))
+			set_cam(eye(p), math.pi, -0.2)
+			sample(S, string.format("%s_h%02d_ground", w, hour))
+		end
+	end
+	set_weather(saved.weather)
+	-- погодные эффекты
+	for _, fx in ipairs(cfg_list(S, "effects", {})) do
+		set_hour(13)
+		if level.weather_exists and not level.weather_exists(fx, true) then
+			warn("weather fx [%s] not found - skipped", fx)
+		elseif level.set_weather_fx(fx) then
+			local t = cfg_num(S, "effect_time", 8000)
+			local steps = 4
+			for k = 1, steps do
+				set_cam(eye(p), k * math.pi / 2, 0.2)
+				wait(t / steps)
+				sample(S, string.format("fx_%s_%d", fx, k))
+			end
+			level.stop_weather_fx()
+		else
+			warn("weather fx [%s] can't be started", fx)
+		end
+	end
+	set_weather(saved.weather)
+end
+
+local function spawn_row_test(S, sections, spawn_fn, after_fn)
+	local pts = level_points(4)
+	local p = base_point(pts, 1)
+	teleport_actor(p)
+	local h = 0.3
+	local dist = cfg_num(S, "distance", 7)
+	local hours = cfg_nums(S, "hours", {"13"})
+	local n = table.getn(sections)
+	local ids = {}
+	for i, sec in ipairs(sections) do
+		local side = (i - (n + 1) / 2) * 2.5
+		local se = spawn_fn(sec, in_front(p, h, dist, side), i)
+		ids[i] = se and se.id or nil
+	end
+	wait(cfg_num(S, "online_wait", 3000))
+	-- Существа не должны драться и гибнуть: при удалении погибшего НПС, чьё оружие уже выпало, клиент и сервер
+	-- расходятся в принадлежности предметов, и позже движок вылетает с "ID already registered".
+	for i = 1, n do
+		local obj = ids[i] and level.object_by_id(ids[i])
+		if obj then
+			pcall(function() obj:invulnerable(true) end)
+			pcall(function() obj:set_enemy_callback(function() return false end) end)
+		end
+	end
+	-- фактическое положение объекта (НПС и мутанты уходят с точки спавна)
+	local function target_of(i, side)
+		local obj = ids[i] and level.object_by_id(ids[i])
+		if obj then
+			local pos = obj:position()
+			return vector():set(pos.x, pos.y + 0.9, pos.z), true
+		end
+		local t = in_front(p, h, dist, side)
+		return vector():set(t.x, t.y + 1, t.z), false
+	end
+	for _, hour in ipairs(hours) do
+		set_hour(hour)
+		local center = in_front(p, h, dist, 0)
+		center.y = center.y + 1
+		cam_look_at(eye(in_front(p, h, -2, 0)), center)
+		sample(S, string.format("group_h%02d", hour))
+		-- крупные планы каждого объекта
+		for i, sec in ipairs(sections) do
+			local side = (i - (n + 1) / 2) * 2.5
+			local tgt, online = target_of(i, side)
+			if not online and ids[i] then warn("[%s] %s (id %d) is not online - nothing to look at", S, sec, ids[i]) end
+			-- камера в 3.5 м от объекта: первый ракурс (начиная со стороны точки обзора), откуда цель видна без препятствий
+			local base_dir = vector():set(in_front(p, h, -2, 0)):sub(tgt)
+			base_dir.y = 0
+			local base_h = base_dir:magnitude() > 0.1 and base_dir:normalize():getH() or (h + math.pi)
+			local cam = nil
+			for k = 0, 7 do
+				local try = vector():set(tgt):mad(vector():setHP(base_h + k * math.pi / 4, 0), 3.5)
+				try.y = tgt.y + 0.6
+				local dir = vector():set(tgt):sub(try)
+				local len = dir:magnitude()
+				local rq = level.ray_query(try, dir:normalize(), len, rq_target.rqtStatic, db.actor)
+				if not rq.result or rq.range > len - 0.3 then cam = try break end
+			end
+			if not cam then
+				cam = vector():set(tgt):mad(vector():setHP(base_h, 0), 3.5)
+				cam.y = tgt.y + 0.6
+			end
+			cam_look_at(cam, tgt)
+			sample(S, string.format("%s_h%02d", sec, hour))
+		end
+		if after_fn then after_fn(hour, p, h, dist) end
+	end
+	if S == "npc" then defer_spawned() else release_spawned() end
+	stop_particles()
+end
+
+function scenarios.npc()
+	local S = "npc"
+	spawn_row_test(S, cfg_list(S, "sections", {"stalker"}), function(sec, pos) return spawn(sec, pos) end)
+end
+
+function scenarios.fire()
+	local S = "fire"
+	local list = cfg_list(S, "particles", {"explosions\\campfire_00"})
+	local pts = level_points(4)
+	local p = base_point(pts, 2)
+	teleport_actor(p)
+	local dist = cfg_num(S, "distance", 5)
+	for _, hour in ipairs(cfg_nums(S, "hours", {"13"})) do
+		set_hour(hour)
+		for _, name in ipairs(list) do
+			local pos, _ = ground_at(in_front(p, 0.5, dist, 0))
+			play_particle(name, pos)
+			wait(cfg_num(S, "play_time", 3000))
+			cam_look_at(eye(p), vector():set(pos.x, pos.y + 1, pos.z))
+			sample(S, string.format("%s_h%02d", name, hour))
+			-- вид сбоку, близко - проверка мягких частиц на пересечении с геометрией
+			cam_look_at(eye(in_front(pos, 2.0, -2.5, 0)), vector():set(pos.x, pos.y + 0.5, pos.z))
+			sample(S, string.format("%s_h%02d_close", name, hour))
+			stop_particles()
+		end
+	end
+end
+
+function scenarios.anomalies()
+	local S = "anomalies"
+	local r = cfg_num(S, "radius", 3)
+	spawn_row_test(S, cfg_list(S, "sections", {}), function(sec, pos) return spawn_anomaly(sec, pos, r) end)
+	-- партиклы аномалий отдельно
+	local pts = level_points(4)
+	local p = base_point(pts, 3)
+	teleport_actor(p)
+	set_hour(13)
+	for _, name in ipairs(cfg_list(S, "particles", {})) do
+		local pos, _ = ground_at(in_front(p, 0.8, 6, 0))
+		play_particle(name, pos)
+		wait(2000)
+		cam_look_at(eye(p), vector():set(pos.x, pos.y + 1, pos.z))
+		sample(S, "ps_" .. name)
+		stop_particles()
+	end
+end
+
+function scenarios.hud()
+	local S = "hud"
+	for _, sec in ipairs(cfg_list(S, "give_items", {})) do
+		if system_ini():section_exist(sec) then
+			-- не удаляем после теста: release предмета в инвентаре приводит к "ID already registered" при следующем спавне
+			alife():create(sec, db.actor:position(), db.actor:level_vertex_id(), db.actor:game_vertex_id(), db.actor:id())
+		else
+			warn("item section [%s] not found", sec)
+		end
+	end
+	wait(1500)
+	release_cam()
+	local pts = level_points(4)
+	teleport_actor(pts[4] or pts[1] or db.actor:position())
+	for _, hour in ipairs(cfg_nums(S, "hours", {"13"})) do
+		set_hour(hour)
+		for _, slot in ipairs(cfg_nums(S, "slots", {"1", "2"})) do
+			if db.actor:item_in_slot(slot) then
+				db.actor:activate_slot(slot)
+				wait(1500)
+				sample(S, string.format("slot%d_idle_h%02d", slot, hour))
+				if cfg_bool(S, "aim", true) and slot >= 1 and slot <= 2 then
+					local dik = action_dik(key_bindings.kWPN_ZOOM)
+					if dik then
+						level.send_event_key_press(dik)
+						wait(800)
+						sample(S, string.format("slot%d_aim_h%02d", slot, hour))
+						level.send_event_key_release(dik)
+						wait(500)
+					end
+				end
+				if cfg_bool(S, "reload", true) and slot >= 1 and slot <= 2 then
+					if press(key_bindings.kWPN_RELOAD) then
+						wait(600)
+						shot(S, string.format("slot%d_reload_mid_h%02d", slot, hour))
+						wait(2500)
+					end
+				end
+			else
+				out("[%s] slot %d is empty, skipped", S, slot)
+			end
+		end
+		db.actor:activate_slot(255)
+		wait(800)
+		if cfg_bool(S, "torch", true) and press(key_bindings.kTORCH) then
+			wait(500)
+			sample(S, string.format("torch_on_h%02d", hour))
+			press(key_bindings.kTORCH)
+			wait(300)
+		end
+		if cfg_bool(S, "night_vision", true) and press(key_bindings.kNIGHT_VISION) then
+			wait(1200)
+			sample(S, string.format("nightvision_h%02d", hour))
+			press(key_bindings.kNIGHT_VISION)
+			wait(800)
+		end
+		if cfg_bool(S, "legs", true) then
+			-- взгляд вниз из глаз актора: ноги от 1-го лица (swm_legs, шейдер models\selflight_det_3)
+			local e = db.actor:bone_position("bip01_head")
+			for k, pitch in ipairs({-0.9, -1.3}) do
+				set_cam(e, db.actor:direction():getH(), pitch, true)
+				sample(S, string.format("legs_pitch%d_h%02d", k, hour))
+			end
+			release_cam()
+			wait(300)
+		end
+	end
+	db.actor:activate_slot(saved.slot)
+end
+
+function scenarios.water()
+	local S = "water"
+	local cnt = level.find_material_points(cfg_str(S, "material", "liquid"), cfg_num(S, "points", 6), cfg_num(S, "min_spacing", 35))
+	local list = {}
+	for i = 0, cnt - 1 do table.insert(list, level.material_point(i)) end
+	if table.getn(list) == 0 then
+		out("[%s] no water on level [%s] - skipped (load lvl8_swamp to test swamp water)", S, level_name)
+		return
+	end
+	out("[%s] found %d water points", S, table.getn(list))
+	local dirs = cfg_num(S, "directions", 4)
+	local heights = cfg_nums(S, "heights", {"1.7", "0.4", "-0.6"})
+	for _, hour in ipairs(cfg_nums(S, "hours", {"13"})) do
+		set_hour(hour)
+		for i, wp in ipairs(list) do
+			teleport_actor(ground_at(wp))
+			for _, hgt in ipairs(heights) do
+				local cp = vector():set(wp.x, wp.y + hgt, wp.z)
+				local pitch = hgt > 0 and -0.25 or 0.3   -- над водой смотрим на поверхность, под водой - вверх
+				for d = 0, dirs - 1 do
+					set_cam(cp, d * 2 * math.pi / dirs, pitch)
+					sample(S, string.format("w%d_y%+.1f_dir%d_h%02d", i, hgt, d, hour))
+				end
+			end
+			-- брызги/круги на воде (партикл попадания по воде)
+			play_particle("hit_fx\\group_items\\hit_water_splash_01", wp)
+			cam_look_at(vector():set(wp.x, wp.y + 1.5, wp.z + 3), wp)
+			wait(300)
+			shot(S, string.format("w%d_splash_h%02d", i, hour))
+			stop_particles()
+		end
+	end
+end
+
+function scenarios.occlusion()
+	local S = "occlusion"
+	local off = cfg_list(S, "off_cmds", {"r__moc_enable 0", "r__hiz 0"})
+	local on = cfg_list(S, "on_cmds", {"r__moc_enable 1", "r__hiz 1"})
+	local pts = level_points(cfg_num(S, "points", 4))
+	local dirs = cfg_num(S, "directions", 4)
+	for i, p in ipairs(pts) do
+		teleport_actor(p)
+		for d = 0, dirs - 1 do
+			set_cam(eye(p), d * 2 * math.pi / dirs, -0.03)
+			for _, c in ipairs(off) do console_exec(c) end
+			local a = sample(S, string.format("pt%d_dir%d_occ_off", i, d))
+			for _, c in ipairs(on) do console_exec(c) end
+			local b = sample(S, string.format("pt%d_dir%d_occ_on", i, d))
+			if a.fps > 0 and b.fps > 0 then
+				out("[%s] pt%d_dir%d occlusion gain: %+.1f%%", S, i, d, (b.fps / a.fps - 1) * 100)
+			end
+		end
+	end
+end
+
+function scenarios.flythrough()
+	local S = "flythrough"
+	local pts = level_points(cfg_num(S, "points", 8))
+	local n = table.getn(pts)
+	if n < 2 then return end
+	local height = cfg_num(S, "height", 12)
+	local speed = cfg_num(S, "speed", 10)
+	-- общее время пролёта ограничено: на больших уровнях точки далеко друг от друга, скорость тогда растёт
+	local seg_max = cfg_num(S, "max_time", 30000) / (n - 1)
+	set_hour(13)
+	samples = {}
+	local t0 = now()
+	for i = 1, n - 1 do
+		local a = vector():set(pts[i].x, pts[i].y + height, pts[i].z)
+		local b = vector():set(pts[i + 1].x, pts[i + 1].y + height, pts[i + 1].z)
+		local len = a:distance_to(b)
+		local dur = math.max(100, math.min(len / speed * 1000, seg_max))
+		local start = now()
+		repeat
+			local k = math.min(1, (now() - start) / dur)
+			local pos = vector():set(a):lerp(a, b, k)
+			cam_look_at(pos, vector():set(b.x, b.y - height * 0.5, b.z))
+			coroutine.yield()
+			if stop_requested then error("stopped by user", 0) end
+		until k >= 1
+	end
+	-- статистика пролёта
+	local s = samples
+	samples = nil
+	local cnt = table.getn(s)
+	local sum, max_ms, hitches = 0, 0, 0
+	for i = 1, cnt do
+		sum = sum + s[i]
+		if s[i] > max_ms then max_ms = s[i] end
+		if s[i] > G.hitch_ms then hitches = hitches + 1 end
+	end
+	table.sort(s)
+	local p99 = cnt > 0 and s[math.max(1, math.floor(cnt * 0.99))] or 0
+	local st = {fps = sum > 0 and cnt * 1000 / sum or 0, low = p99 > 0 and 1000 / p99 or 0, max_ms = max_ms, hitches = hitches}
+	out("[%s] %d frames in %.1f s: avg %.1f fps | 1%% low %.1f | max frame %.0f ms | hitches %d", S, cnt, (now() - t0) / 1000, st.fps, st.low, st.max_ms, st.hitches)
+	if hitches > 0 then warn("[%s] %d hitches during flythrough (streaming/shader compile?)", S, hitches) end
+	add_total(S, st)
+end
+
+-- Меню настроек графики: для каждого типа рендера в комбобоксе - какие расширенные настройки доступны.
+-- Окна (luabind-классы CUIScriptWnd) создаются и вызываются только в основном потоке (on_main), не в корутине.
+function scenarios.menu()
+	local S = "menu"
+	local dlg = on_main(function()
+		local d = ui_mm_opt_main.options_dialog()
+		level.start_stop_menu(d, true)
+		return d
+	end)
+	if not dlg then
+		warn("[%s] options dialog can't be created", S)
+		return
+	end
+	wait(500)
+	shot(S, "video_tab")
+	on_main(function()
+		dlg:OnBtnAdvGraphic()
+		dlg.dlg_video_adv.scroll_v:ScrollToEnd() -- заблокированные настройки рендеров внизу списка
+	end)
+	local seen = {}
+	for i = 0, 7 do
+		local r = on_main(function()
+			local combo = dlg.dlg_video.combo_renderer
+			combo:SetCurrentID(i)
+			local tok = ui_mm_opt_video_adv.selected_renderer_token(combo)
+			dlg:RefreshRendererOptions()
+			local adv, off = dlg.dlg_video_adv, {}
+			for _, opt in ipairs(adv.order) do
+				if not adv.items[opt].enabled then table.insert(off, opt) end
+			end
+			return {tok = tok, text = combo:GetText(), off = off}
+		end)
+		if not r or seen[r.tok] then break end
+		seen[r.tok] = true
+		out("[%s] %-14s (%s): disabled %d: %s", S, r.tok, r.text, table.getn(r.off), table.concat(r.off, ", "))
+		wait(300)
+		shot(S, "adv_" .. r.tok)
+	end
+	on_main(function()
+		dlg:UpdateOptValues(false)
+		level.start_stop_menu(dlg, true)
+	end)
+	wait(300)
+end
+
+function scenarios.shaders()
+	console_exec("r_shader_audit")
+	out("[shaders] see $logs$\\shader_audit_%s.txt", level.render_shader_dir())
+end
+
+-- ---------------------------------------------------------------------------
+-- Управление
+-- ---------------------------------------------------------------------------
+local function save_state()
+	saved = {
+		pos = db.actor:position(),
+		hour = level.get_time_hours(),
+		weather = level.get_weather(),
+		slot = db.actor:active_slot(),
+		god = get_console():get_bool("g_god"),
+		cvars = {},
+	}
+	for _, name in ipairs({"r__moc_enable", "r__hiz"}) do
+		local ok, v = pcall(function() return get_console():get_integer(name) end)
+		if ok and v then saved.cvars[name] = v end
+	end
+end
+
+local function restore_state()
+	if not saved then return end
+	pcall(stop_particles)
+	pcall(release_spawned)
+	for _, id in ipairs(deferred_ids) do table.insert(spawned_ids, id) end
+	deferred_ids = {}
+	pcall(release_spawned)
+	pcall(release_cam)
+	pcall(function() level.stop_weather_fx() end)
+	for name, v in pairs(saved.cvars) do console_exec(name .. " " .. v) end
+	console_exec("g_god " .. (saved.god and "1" or "0"))
+	if G.teleport then pcall(function() db.actor:set_actor_position(saved.pos) end) end
+	pcall(function() set_weather(saved.weather) end)
+	if G.hide_ui then pcall(level.show_indicators) end
+	saved = nil
+end
+
+local function write_report()
+	table.insert(report, "")
+	table.insert(report, "=== SUMMARY ===")
+	for _, scn in ipairs(ALL_SCENARIOS) do
+		local t = totals[scn]
+		if t and t.n > 0 then
+			table.insert(report, string.format("%-12s samples %3d | avg %6.1f fps | worst %6.1f fps | hitches %d", scn, t.n, t.fps / t.n, t.min_fps, t.hitches))
+		end
+	end
+	table.insert(report, "")
+	table.insert(report, string.format("=== WARNINGS: %d ===", table.getn(warnings)))
+	for _, w in ipairs(warnings) do table.insert(report, w) end
+	table.insert(report, "")
+	table.insert(report, "Also check the engine log for lines starting with '!' (missing shaders/textures, shader compile errors).")
+
+	local fname = string.format("render_bench_%s_%s.txt", render_name, level_name)
+	local path = getFS():update_path("$logs$", fname)
+	local f = io.open(path, "w")
+	if f then
+		f:write(table.concat(report, "\n"))
+		f:write("\n")
+		f:close()
+		log1("[render_bench] report written: " .. path)
+	else
+		log1("[render_bench] can't write report: " .. tostring(path))
+	end
+end
+
+local function run(list)
+	if not db.actor:alive() then
+		out("actor is dead - benchmark aborted")
+		write_report()
+		return
+	end
+	save_state()
+	if G.god_mode then console_exec("g_god 1") end
+	wait_scene_free()
+	out("waiting up to %d ms for start-up post-process effects to finish...", G.pp_wait)
+	clear_pp(G.pp_wait)
+	if G.hide_ui then level.hide_indicators() end
+	out("Render benchmark: render [%s], shaders [%s], level [%s], %dx%d, started %s", render_name, level.render_shader_dir(), level_name, device().width, device().height, os.date("%Y-%m-%d %H:%M:%S"))
+	out("Scenarios: %s", table.concat(list, ", "))
+	out("")
+	for _, name in ipairs(list) do
+		local fn = scenarios[name]
+		if not fn then
+			warn("unknown scenario [%s]", name)
+		else
+			out("--- %s ---", name)
+			local t0 = now()
+			local ok, err = pcall(fn)
+			release_spawned()
+			stop_particles()
+			if not ok then
+				if stop_requested then
+					out("stopped by user")
+					break
+				end
+				warn("scenario [%s] failed: %s", name, tostring(err))
+			end
+			out("--- %s done in %.1f s ---", name, (now() - t0) / 1000)
+			out("")
+		end
+	end
+	restore_state()
+	write_report()
+end
+
+-- Покадровое обновление: через ogse_signals, если он есть в моде, иначе через level.add_call - тогда бенчмарк
+-- работает в любой игре на OGSR (в том числе на ванильных ресурсах движка Game\Resources_SoC_1.0006)
+local update_mode = nil
+local function hook_update()
+	if update_mode then return end
+	local sig = rawget(_G, "ogse_signals")
+	if sig and sig.get_mgr then
+		sig.get_mgr():subscribe({signal = "on_update", fun = on_update})
+		update_mode = "ogse"
+	else
+		-- условие вызывается каждый кадр, действие не нужно; вызов остаётся навсегда, но без бенчмарка ничего не делает
+		level.add_call(function() on_update() return false end, function() end)
+		update_mode = "add_call"
+	end
+end
+
+local function unhook_update()
+	if update_mode == "ogse" then
+		rawget(_G, "ogse_signals").get_mgr():unsubscribe({signal = "on_update", fun = on_update})
+		update_mode = nil
+	end
+end
+
+local autoquit = false
+
+function on_update()
+	if not co then return end
+	if samples then table.insert(samples, device().f_time_delta * 1000) end
+	if G.god_mode and db.actor then
+		db.actor.health = 1
+		db.actor.radiation = -1
+	end
+	if table.getn(main_tasks) > 0 then
+		local tasks = main_tasks
+		main_tasks = {}
+		for _, t in ipairs(tasks) do
+			local ok, err = pcall(t)
+			if not ok then log1("[render_bench] main-thread task failed: " .. tostring(err)) end
+		end
+	end
+	if device().precache_frame > 0 then return end
+	local ok, err = coroutine.resume(co)
+	if not ok then
+		log1("[render_bench] fatal: " .. tostring(err))
+		pcall(restore_state)
+		pcall(write_report)
+		co = nil
+	elseif coroutine.status(co) == "dead" then
+		co = nil
+	end
+	if not co and update_mode then
+		unhook_update()
+		log1("[render_bench] finished")
+		if autoquit then get_console():execute("quit") end
+	end
+end
+
+local function load_cfg()
+	ini = ini_file(CFG_FILE)
+	G.god_mode = cfg_bool("general", "god_mode", true)
+	G.teleport = cfg_bool("general", "teleport_actor", false)
+	G.env_settle = cfg_num("general", "env_settle", 4000)
+	G.pp_wait = cfg_num("general", "pp_wait", 30000)
+	G.keep_pp = {}
+	for _, v in ipairs(cfg_list("general", "keep_pp", {"999"})) do G.keep_pp[tonumber(v) or -1] = true end
+	pp_warned = {}
+	G.hide_ui = cfg_bool("general", "hide_ui", true)
+	G.settle_time = cfg_num("general", "settle_time", 1500)
+	G.measure_time = cfg_num("general", "measure_time", 2000)
+	G.eye_height = cfg_num("general", "eye_height", 1.7)
+	G.hitch_ms = cfg_num("general", "hitch_ms", 100)
+	G.low_fps = cfg_num("general", "low_fps", 25)
+end
+
+-- Вызывается консольной командой render_bench (xrGame\console_commands.cpp)
+function console_start(args)
+	args = trim(args or "")
+	if args == "stop" then
+		if co then
+			stop_requested = true
+			log1("[render_bench] stopping...")
+		end
+		return
+	end
+	if args == "list" then
+		log1("[render_bench] scenarios: " .. table.concat(ALL_SCENARIOS, ", ") .. "; 'render_bench' = scenarios from [general] of " .. CFG_FILE)
+		return
+	end
+	if co then
+		log1("[render_bench] already running, use 'render_bench stop'")
+		return
+	end
+	if not db.actor then
+		log1("[render_bench] no actor")
+		return
+	end
+
+	load_cfg()
+	local list = {}
+	if args == "" then
+		list = cfg_list("general", "scenarios", ALL_SCENARIOS)
+	elseif args == "all" then
+		list = ALL_SCENARIOS
+	else
+		for s in string.gmatch(args, "[^%s,]+") do table.insert(list, s) end
+	end
+
+	local tok = get_console():get_token("renderer")
+	render_name = (tok and string.gsub(tok, "^renderer_", "")) or level.render_shader_dir()
+	level_name = level.name()
+	report, warnings, totals, shot_idx = {}, {}, {}, 0
+	spawn_base_cache = nil
+	stop_requested = false
+	local cl = command_line() or ""
+	autoquit = string.find(cl, "-rbench ", 1, true) ~= nil and not string.find(cl, "-rbench_keep", 1, true)
+	rng_seed(12345) -- одинаковые точки на всех рендерах
+	co = coroutine.create(function() run(list) end)
+	hook_update()
+	log1("[render_bench] started: " .. table.concat(list, " "))
+end
+
+-- Запуск без ручного ввода по командной строке (RenderBench.ps1):
+--   xrEngine.exe -ltx test_r2.ltx -rbench npc+fire+hud [-rbench_keep] -start server(all/single/alife/load) client(localhost)
+-- Сценарии через '+' ('all' - все, 'cfg' - из [general]). Сам запуск делает движок (CGamePersistent::OnFrame, через ~5 с после
+-- загрузки уровня выполняет консольную команду render_bench); после бенчмарка игра закрывается, если нет -rbench_keep.
+
+-- Модуль подключается через ogse_signals_list (мод OLR) - автозапуск делает движок, подписки не нужны
+function attach(sm)
+end

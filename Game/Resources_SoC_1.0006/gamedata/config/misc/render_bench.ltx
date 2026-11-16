@@ -1,0 +1,106 @@
+; Встроенный бенчмарк рендера (gamedata\scripts\render_bench.script).
+; Запуск из консоли на загруженном уровне:
+;   render_bench            - все сценарии из [general] scenarios
+;   render_bench water      - один сценарий (можно несколько через пробел: render_bench npc fire hud)
+;   render_bench list       - список сценариев
+;   render_bench stop       - прервать
+; Без ручного ввода по всем рендерам: powershell -File RenderBench.ps1 (в корне репозитория).
+; Результаты:
+;   $logs$\render_bench_<рендер>_<уровень>.txt  - FPS/время кадра по каждому тесту, предупреждения
+;   $logs$\shader_audit_<рендер>.txt            - недостающие шейдеры/текстуры (сценарий shaders)
+;   $screenshots$\bench\<рендер>\<уровень>\     - скриншоты; одинаковые имена на всех рендерах - сравнивать попарно
+; Значения ниже подобраны для быстрого прогона (~3-5 минут на рендер). Для подробного теста увеличьте
+; количество точек/направлений/часов и measure_time.
+
+[general]
+scenarios       = hud, npc, fire, anomalies, water, timeofday, weather, panorama, occlusion, flythrough, shaders
+god_mode        = true      ; бессмертие на время теста (аномалии, мутанты)
+teleport_actor  = false     ; true = переносить актора в точки теста (может запускать сюжетные рестрикторы, катсцены и ролики)
+pp_wait         = 30000     ; мс ожидания, пока сойдут стартовые постэффекты (ppe), затем они снимаются
+keep_pp         = 999       ; id постэффектов, которые являются частью картинки уровня и не снимаются (999 = постэффект уровня)
+env_settle      = 2000      ; мс ожидания после смены времени/погоды
+hide_ui         = true      ; прятать индикаторы на скриншотах
+settle_time     = 600       ; мс ожидания после смены сцены перед замером/скриншотом
+measure_time    = 1000      ; мс замера FPS в каждой точке
+eye_height      = 1.7
+hitch_ms        = 100       ; кадр дольше этого считается фризом
+low_fps         = 25        ; предупреждать, если средний FPS ниже
+
+[panorama]
+; Точки берутся автоматически из AI-сетки уровня (равномерно по уровню)
+points          = 3
+directions      = 4
+pitch           = -0.05
+
+[timeofday]
+; Смена времени суток и скайбокс: камера смотрит на горизонт, плюс вверх на небо
+hours           = 0, 6, 12, 20
+directions      = 2
+sky_shot        = true
+
+[weather]
+; Секции погоды (config\environment\weathers\*.ltx). Пусто = только текущая погода уровня.
+list            = default_escape, default_swamp, default_garbage
+hours           = 13
+; Погодные эффекты (config\environment\weather_effects\*.ltx): выброс и т.п.
+effects         = surge_day_full
+effect_time     = 4000
+
+[npc]
+; Секции НПС и мутантов: спавнятся полукругом перед камерой
+sections        = stalker, stalker_fresh_zombied, m_flesh_e, dog_weak, bloodsucker_weak
+distance        = 7
+online_wait     = 3000
+hours           = 13, 23   ; день и ночь
+
+[fire]
+; Партиклы огня, дыма, искр (play_at_pos). Проверяются мягкие частицы, дисторшн, освещение.
+particles       = explosions\campfire_00, anomaly2\group_items\heat_fire, anomaly2\group_items\smoke_01, a_ufp_particles\flame_grenade, nature\fog_foggy_00
+distance        = 5
+hours           = 13, 23
+play_time       = 1500
+
+[anomalies]
+; Аномалии (секции зон) - спавнятся перед камерой со сферической формой radius
+sections        = zone_mosquito_bald_average, zone_mincer_average, zone_buzz_average, zone_witches_galantine_average, zone_zharka_static_average, zone_gravi_zone_average
+radius          = 3
+distance        = 8
+online_wait     = 2000
+; Дополнительно - партиклы аномалий без самой зоны
+particles       = anomaly\galantine, anomaly2\anomaly_studen, anomaly2\artefact\anomaly_electra_idle_00
+
+[hud]
+; Худовые анимации: слоты оружия, перезарядка, прицеливание, фонарик, ПНВ, ноги от 1-го лица
+slots           = 1, 2, 3
+give_items      = wpn_knife, wpn_pm, wpn_ak74, ammo_9x18_fmj, ammo_5.45x39_fmj, ammo_5.45x39_fmj, grenade_rgd5
+reload          = true
+aim             = true
+torch           = true
+night_vision    = true
+legs            = true      ; взгляд вниз - видны ли ноги и корректно ли они освещены
+hours           = 13, 23
+
+[water]
+; Вода: точки находятся автоматически по материалу статической геометрии (флаг жидкости).
+; На уровнях без воды сценарий пропускается. Для болот: загрузить lvl8_swamp и запустить render_bench water
+material        = liquid
+points          = 2
+min_spacing     = 35
+directions      = 2
+heights         = 1.7, -0.6   ; над водой, под водой
+hours           = 13, 23
+
+[occlusion]
+; Сравнение кадров с MOC/Hi-Z и без: одинаковые пары скриншотов *_occ_on / *_occ_off.
+; Если объекты пропадают только на *_occ_on - это ошибка отсечения.
+points          = 2
+directions      = 2
+off_cmds        = r__moc_enable 0, r__hiz 0
+on_cmds         = r__moc_enable 1, r__hiz 1
+
+[flythrough]
+; Пролёт камеры по уровню на высоте - замер производительности
+points          = 4
+height          = 12
+speed           = 15        ; м/с
+max_time        = 30000     ; мс на весь пролёт (на больших уровнях скорость растёт)

@@ -273,6 +273,7 @@ public:
 
     // Models
     virtual IRenderVisual* model_CreateParticles(LPCSTR name);
+    virtual bool model_ParticlesExist(LPCSTR name) override { return PSLibrary.FindPED(name) || PSLibrary.FindPGD(name); }
     virtual IRender_DetailModel* model_CreateDM(IReader* F);
     virtual IRenderVisual* model_Create(LPCSTR name, IReader* data = 0);
     virtual IRenderVisual* model_CreateChild(LPCSTR name, IReader* data);

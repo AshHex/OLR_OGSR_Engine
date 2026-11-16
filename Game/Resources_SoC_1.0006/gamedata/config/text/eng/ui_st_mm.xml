@@ -1043,4 +1043,16 @@
 		<text>This setting controls which frame in turn will be rendered in the 3D scope. By default - every 2. If you increase it, the FPS in the game will increase, but the FPS in the 3D scope will decrease.</text>
 	</string>
 
+	<string id="video_settings_name_r1_detail">
+		<text>Detail textures (static lighting)</text>
+	</string>
+	<string id="video_settings_name_r1_ssample">
+		<text>Supersampling (static lighting)</text>
+	</string>
+	<string id="video_settings_unavailable">
+		<text>Not available for the selected renderer. Change the renderer on the "Video" tab (the game must be restarted).</text>
+	</string>
+	<string id="ui_mm_r2_ls_bloom_fast">
+		<text>Disable Sky Bloom</text>
+	</string>
 </string_table>

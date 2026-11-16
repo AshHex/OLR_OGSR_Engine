@@ -1009,4 +1009,25 @@
 		<text>Эта настройка регулирует, какой по очереди кадр будет рендериться в 3D прицел. По умолчанию - каждый второй. Если её увеличить - FPS в игре повысится, но понизится FPS в 3D прицеле.</text>
 	</string>
 
+	<string id="video_settings_desc_30">
+		<text>Эта настройка выключает эффект легкой засветки неба (bloom).</text>
+	</string>
+	<string id="video_settings_name_30">
+		<text>Эффект легкой засветки неба (bloom) - r2_ls_bloom_fast</text>
+	</string>
+	<string id="video_settings_name_r1_detail">
+		<text>Детальные текстуры (статическое освещение)</text>
+	</string>
+	<string id="video_settings_name_r1_ssample">
+		<text>Суперсэмплинг (статическое освещение)</text>
+	</string>
+	<string id="video_settings_unavailable">
+		<text>Недоступно на выбранном типе рендера. Смените тип рендера на вкладке "Видео" (нужен перезапуск игры).</text>
+	</string>
+	<string id="ui_mm_r2_ls_bloom_fast">
+		<text>Отключение легкой засветки неба</text>
+	</string>
+	<string id="ui_mm_ssample">
+		<text>Суперсэмплинг</text>
+	</string>
 </string_table>

@@ -1078,6 +1078,13 @@ void CLevel::script_register(lua_State* L)
             def("get_bounding_volume", &get_bounding_volume),
             def("find_material_points", &find_material_points), def("material_point", &material_point), def("bench_screenshot", &bench_screenshot), def("render_shader_dir", &render_shader_dir),
             def("render_generation", &render_generation), def("input_disabled", &input_disabled), def("active_pp_effectors", &active_pp_effectors),
+            def("particle_exists", [](LPCSTR name) { return name && name[0] && ::Render->model_ParticlesExist(name); }),
+            def("weather_exists", [](LPCSTR name, bool fx) {
+                if (!name || !name[0]) return false;
+                auto& E = g_pGamePersistent->Environment();
+                const auto& m = fx ? E.WeatherFXs : E.WeatherCycles;
+                return m.find(shared_str(name)) != m.end();
+            }),
 
             def("iterate_sounds", &iterate_sounds1), def("iterate_sounds", &iterate_sounds2), def("physics_world", &physics_world), def("get_snd_volume", &get_snd_volume),
             def("set_snd_volume", &set_snd_volume), def("add_cam_effector", &add_cam_effector), def("add_cam_effector2", &add_cam_effector2),

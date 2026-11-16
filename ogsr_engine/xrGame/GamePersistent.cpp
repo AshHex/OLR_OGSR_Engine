@@ -574,6 +574,31 @@ void CGamePersistent::OnFrame()
     if (!g_pGameLevel->bReady)
         return;
 
+    // -rbench <сценарии через +>: через несколько секунд после загрузки уровня запускаем бенчмарк рендера
+    // (render_bench.script сам дождётся окончания катсцен/постэффектов и выйдет из игры, если нет -rbench_keep)
+    if (const char* rb = strstr(Core.Params, "-rbench "); rb && g_actor && Device.dwPrecacheFrame == 0 && !Device.Paused())
+    {
+        static u32 rbench_ready_time = 0;
+        static bool rbench_started = false;
+        if (!rbench_started)
+        {
+            if (!rbench_ready_time)
+                rbench_ready_time = Device.dwTimeGlobal;
+            else if (Device.dwTimeGlobal - rbench_ready_time > 5000)
+            {
+                rbench_started = true;
+                string256 args{};
+                sscanf(rb + xr_strlen("-rbench "), "%255s", args);
+                for (char* c = args; *c; ++c)
+                    if (*c == '+' || *c == ',')
+                        *c = ' ';
+                string512 cmd;
+                xr_sprintf(cmd, "render_bench %s", xr_strcmp(args, "cfg") ? args : "");
+                Console->Execute(cmd);
+            }
+        }
+    }
+
     if (Device.Paused())
     {
 #ifndef MASTER_GOLD

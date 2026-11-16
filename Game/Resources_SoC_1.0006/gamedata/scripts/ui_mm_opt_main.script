@@ -1,6 +1,7 @@
 -- Меню настроек для Теней Чернобыля.
 -- KRodin (c) 2018
--- Вырезал поддержку загрузки патчей, первого рендера (т.к. он не поддерживается движком) и прочий мусор.
+-- Вырезал поддержку загрузки патчей и прочий мусор. Выбор рендеров R1-R4 возвращён, как в оригинале:
+-- расширенные настройки, которых нет у выбранного рендера, недоступны.
 -- Сделано специально для использования с движком OGSR.
 
 class "options_dialog" (CUIScriptWnd)
@@ -14,6 +15,7 @@ function options_dialog:__init() super()
 	self:InitControls()
 	self:InitCallBacks()
 	self:UpdateOptValues()
+	self:RefreshRendererOptions()
 end
 
 function options_dialog:__finalize()
@@ -100,7 +102,8 @@ function options_dialog:InitCallBacks()
 	self:AddCallback("btn_advanced_graphic", ui_events.BUTTON_CLICKED, self.OnBtnAdvGraphic, self)
 	self:AddCallback("btn_accept", ui_events.BUTTON_CLICKED, self.OnBtnAccept, self)
 	self:AddCallback("btn_cancel", ui_events.BUTTON_CLICKED, self.OnBtnCancel, self)
-	self:AddCallback("combo_preset", ui_events.LIST_ITEM_SELECT, self.OnPresetChanged, self)	
+	self:AddCallback("combo_preset", ui_events.LIST_ITEM_SELECT, self.OnPresetChanged, self)
+	self:AddCallback("combo_renderer", ui_events.LIST_ITEM_SELECT, self.OnRendererChanged, self)
 	self:AddCallback("btn_simply_graphic", ui_events.BUTTON_CLICKED, self.OnSimplyGraphic, self)	
 	self:AddCallback("btn_keyb_default", ui_events.BUTTON_CLICKED, self.Onbtn_keyb_default, self)
 	self:AddCallback("btn_advanced_graphic", ui_events.STATIC_FOCUS_RECEIVED, self.HintRefresh, self)
@@ -128,6 +131,17 @@ function options_dialog:Onbtn_keyb_default()
 	opt:SetCurrentValues("key_binding")
 end
 
+-- Настройки, доступные на рендере, выбранном в комбобоксе "Тип рендера" (как в оригинальных Тенях Чернобыля)
+function options_dialog:RefreshRendererOptions()
+	local token = ui_mm_opt_video_adv.selected_renderer_token(self.dlg_video.combo_renderer)
+	self.dlg_video_adv:UpdateAvailability(token)
+end
+
+function options_dialog:OnRendererChanged()
+	self:RefreshRendererOptions()
+	self:show_need_restart_wnd()
+end
+
 function options_dialog:OnPresetChanged()
 	local opt = COptionsManager()
 	opt:SetCurrentValues("mm_opt_video")
@@ -149,6 +163,7 @@ end
 
 function options_dialog:OnBtnCancel()
 	self:UpdateOptValues(false)
+	self:RefreshRendererOptions()
 
 	self:GetHolder():start_stop_menu(self, true)
 	self.owner:Show(true)
@@ -179,6 +194,7 @@ function options_dialog:OnTabChange()
 end
 
 function options_dialog:OnBtnAdvGraphic()
+	self:RefreshRendererOptions()
 	self.dlg_video:Show(false)
 	self.dlg_video_adv:Show(true)
 
