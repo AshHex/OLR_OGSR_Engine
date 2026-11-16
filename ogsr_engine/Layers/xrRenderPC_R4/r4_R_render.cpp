@@ -246,7 +246,7 @@ void CRender::Render()
     // Msg						("sstatic: %s, sun: %s",o.sunstatic?;"true":"false", bSUN?"true":"false");
 
     // Never force a GPU/CPU sync; poll completed HiZ staging buffers only.
-    if (ps_r__hiz > 0)
+    if (ps_r__hiz > 0 && HOM.MOCActive())
         OGSRHiZ::PumpReadback(HW.pContext);
 
     // HOM
@@ -332,7 +332,7 @@ void CRender::Render()
         // level, DO NOT SPLIT
         Target->phase_scene_begin();
         r_dsgraph_render_graph(0);
-        if (ps_r__hiz > 0 && !o.dx10_msaa && !Device.m_SecondViewport.IsSVPFrame())
+        if (ps_r__hiz > 0 && HOM.MOCActive() && !o.dx10_msaa && !Device.m_SecondViewport.IsSVPFrame())
         {
             // Depth must be unbound from OM before binding it as compute SRV.
             // Use RCache so its internal tracked state remains coherent.
@@ -356,7 +356,7 @@ void CRender::Render()
         // level, SPLIT
         Target->phase_scene_begin();
         r_dsgraph_render_graph(0);
-        if (ps_r__hiz > 0 && !o.dx10_msaa && !Device.m_SecondViewport.IsSVPFrame())
+        if (ps_r__hiz > 0 && HOM.MOCActive() && !o.dx10_msaa && !Device.m_SecondViewport.IsSVPFrame())
         {
             RCache.set_RT(nullptr, 0);
             RCache.set_RT(nullptr, 1);

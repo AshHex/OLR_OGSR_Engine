@@ -350,7 +350,7 @@ BOOL CHOM::visible(vis_data& vis)
 #if defined(RENDER) && (RENDER == R_R4)
     // Do not cull in shadow/reflection passes using main-camera GPU depth.
     if (RImplementation.phase == CRender::PHASE_NORMAL &&
-        !Device.m_SecondViewport.IsSVPFrame() && OGSRHiZ::Occluded(vis.box))
+        !Device.m_SecondViewport.IsSVPFrame() && m_moc.Active() && OGSRHiZ::Occluded(vis.box))
         return FALSE;
 #endif
     if (m_moc.Active()) return m_moc.Visible(vis.box);
@@ -480,7 +480,7 @@ void CHOM::stats()
 {
     if (m_moc.Active()) m_moc.Stats(*Device.Statistic->Font());
 #if defined(RENDER) && (RENDER == R_R4)
-    if (ps_r__hiz) OGSRHiZ::Stats(*Device.Statistic->Font());
+    if (ps_r__hiz && m_moc.Active()) OGSRHiZ::Stats(*Device.Statistic->Font());
 #endif
     if (m_pModel)
     {

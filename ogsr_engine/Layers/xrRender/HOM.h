@@ -37,7 +37,6 @@ public:
     void Render(CFrustum& base);
     void Render_ZB();
     bool MOCActive() const { return m_moc.Active(); }
-    BOOL MOCVisibleMainPadded(const Fbox& box, float pixels) const { return m_moc.VisiblePadded(box, pixels); }
     //	void					Debug		();
 
     void occlude(Fbox2& space) {}

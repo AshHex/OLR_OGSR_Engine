@@ -233,11 +233,11 @@ void main(uint3 id : SV_DispatchThreadID)
             // even when this frame's capture commands are recorded elsewhere.
             Poll(HW.pContext);
 
-            // Adaptive mode 2 keeps the existing TTAPI query path active, but
+            // Adaptive mode keeps the existing TTAPI query path active, but
             // amortizes GPU captures when the camera is practically stationary.
             // Moving/turning always requests a fresh capture. Readback is still
             // asynchronous; never wait for the GPU here.
-            if (ps_r__hiz==2)
+            if (ps_r__hiz>0)
             {
                 if (frame-lastAdaptiveEvalFrame>=30u)
                 {
@@ -314,12 +314,9 @@ void main(uint3 id : SV_DispatchThreadID)
         bool Occluded(const Fbox& b, bool countStats=true,
                       const std::shared_ptr<const Snapshot>& pinned={},
                       const Fmatrix* pinnedFull=nullptr, const Fvector* pinnedCamera=nullptr,
-                      const Fvector* pinnedDirection=nullptr, unsigned pinnedFrame=0,
-                      bool forMocSelection=false)
+                      const Fvector* pinnedDirection=nullptr, unsigned pinnedFrame=0)
         {
-            // Mode 1: Hi-Z may rank/filter CPU MOC occluders, but it must
-            // NEVER cull actual scene objects on its own. Mode 2 does both.
-            if (ps_r__hiz<=0 || (ps_r__hiz==1 && !forMocSelection)) return false;
+            if (ps_r__hiz<=0) return false;
             const auto snap=pinned ? pinned : Load();
             if (!snap || snap->levels.empty() || snap->coveredPermille==0)
             { if(countStats) noSnapshot.fetch_add(1,std::memory_order_relaxed); return false; }
@@ -412,9 +409,7 @@ void main(uint3 id : SV_DispatchThreadID)
             // Oblivion. Use a small bias which increases with snapshot age.
             const float bias=0.00005f+float(age-1u)*0.00002f;
             const bool hidden=nearest>maximum+bias;
-            if (hidden && ps_r__hiz==2 && countStats) rejected.fetch_add(1,std::memory_order_relaxed);
-            // Object queries cannot reach this point in mode 1; MOC-only
-            // queries explicitly opt in with forMocSelection=true.
+            if (hidden && countStats) rejected.fetch_add(1,std::memory_order_relaxed);
             return hidden;
         }
     };
@@ -427,8 +422,8 @@ namespace OGSRHiZ
                                              const Fvector& direction, unsigned frame)
     {
         OccluderSelection selection;
-        // Both modes 1 and 2 use GPU Hi-Z to choose useful MOC occluders.
-        // Only mode 2 additionally culls scene objects in CHOM::visible().
+        // GPU Hi-Z chooses useful MOC occluders and also culls scene objects
+        // in CHOM::visible().
         if (ps_r__hiz<=0) return selection;
         auto snap=Get().Load();
         if (!snap || snap->levels.empty() || snap->coveredPermille==0 ||
@@ -453,7 +448,7 @@ namespace OGSRHiZ
         // A failed projection is NEVER hidden. Do not contribute to object query
         // counters: these are the MOC build's independent cluster probes.
         return Get().Occluded(box,false,snap,&selection.full,&selection.camera,
-                              &selection.direction,selection.frame,true);
+                              &selection.direction,selection.frame);
     }
     void Capture(ID3D11Device* d,ID3D11DeviceContext* c,ID3D11DepthStencilView* depth,
                  const Fmatrix& full,const Fvector& cam,const Fvector& dir,unsigned frame)
@@ -469,7 +464,7 @@ namespace OGSRHiZ
     }
     bool Occluded(const Fbox& box) { return Get().Occluded(box); }
     bool SnapshotReady() { return Get().Ready(); }
-    bool OccludedDebug(const Fbox& box) { return ps_r__hiz==2 && Get().Occluded(box,false); }
+    bool OccludedDebug(const Fbox& box) { return ps_r__hiz>0 && Get().Occluded(box,false); }
     void Reset() { Get().Clear(); }
     void Stats(CGameFont& font)
     {

@@ -9,8 +9,8 @@ class CGameFont;
 
 namespace OGSRHiZ
 {
-    // Both Hi-Z modes use this immutable per-build snapshot to rank/select
-    // CPU MOC occluders. Only mode 2 independently culls scene objects.
+    // Hi-Z uses this immutable per-build snapshot to rank/select
+    // CPU MOC occluders; scene objects are culled by Hi-Z independently.
     struct OccluderSelection
     {
         std::shared_ptr<const void> snapshot;
@@ -34,4 +34,4 @@ namespace OGSRHiZ
     void Reset();
     void Stats(CGameFont& font);
 }
-extern int ps_r__hiz; // 0 off, 1 Hi-Z-assisted MOC selection, 2 selection + adaptive object culling
+extern int ps_r__hiz; // 0 off, 1 object culling + MOC occluder selection (only with active MOC)

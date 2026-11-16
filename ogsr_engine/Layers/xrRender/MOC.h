@@ -18,13 +18,6 @@ class CGameFont;
 class COGSRMOC
 {
 private:
-    struct Face
-    {
-        Fbox box;
-        Fplane plane;
-        Fvector center;
-        u32 flags;
-    };
     struct Cluster
     {
         Fbox box;
@@ -33,8 +26,6 @@ private:
         Cluster() { box.invalidate(); center.set(0.f,0.f,0.f); }
     };
     struct Snapshot;
-    xr_vector<Face> m_faces;
-    xr_vector<Fvector> m_vertices;
     xr_vector<Fvector> m_autoVertices;
     xr_vector<Cluster> m_autoClusters;
     u32 m_autoInputTriangles = 0;
@@ -68,7 +59,6 @@ public:
     void Unload();
     void Build(CFrustum& frustum);
     BOOL Visible(const Fbox& box) const;
-    BOOL VisiblePadded(const Fbox& box, float padPixels) const;
     BOOL Visible(const sPoly& polygon) const;
     bool Active() const;
     void Stats(CGameFont& font) const;
@@ -83,8 +73,3 @@ extern int ps_r__moc_draw;
 void OGSRMOC_CaptureVertexBuffer(u32 id, const BYTE* bytes, u32 size, u32 stride, u16 positionOffset, u8 positionType);
 void OGSRMOC_CaptureIndexBuffer(u32 id, const u16* indices, u32 count);
 void OGSRMOC_ClearGeometryCapture();
-extern int ps_r__moc_source;
-
-extern int ps_r__moc_cull_shadows;
-extern int ps_r__moc_cull_lights;
-extern int ps_r__moc_shadow_guard;

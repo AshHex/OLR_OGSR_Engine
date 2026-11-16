@@ -130,10 +130,6 @@ namespace
         bool operator<(const TriangleKey& o) const
         { for(int k=0;k<3;++k) if(v[k]!=o.v[k]) return v[k]<o.v[k]; return false; }
     };
-#pragma pack(push,4)
-    struct SerializedFace { Fvector v1, v2, v3; u32 flags; };
-#pragma pack(pop)
-    // The old authored HOM format and the OGSR HOM reader use this same layout.
     bool ProjectBox(const Fbox& B, const Fmatrix& X,
         float& xmin, float& ymin, float& xmax, float& ymax, float& wmin)
     {
@@ -170,10 +166,8 @@ struct COGSRMOC::Snapshot
     u32 submittedTriangles = 0;
     u32 hizProbed = 0, hizHidden = 0, candidates = 0;
     bool hizSelection = false;
-    bool generated = false;
     // Debug mode 2: all source clusters accepted by Hi-Z / frustum.
     xr_vector<u32> hizVisibleAutoClusters;
-    xr_vector<u32> hizVisibleFaceIds;
 #if defined(OGSR_USE_INTEL_MOC)
     MaskedOcclusionCulling* context = nullptr;
     ~Snapshot() { if (context) MaskedOcclusionCulling::Destroy(context); }
@@ -501,55 +495,10 @@ bool COGSRMOC::Load()
     OGSRMOC_ClearGeometryCapture();
     return false;
 #else
-    string_path path;
-    FS.update_path(path, "$level$", "level.hom");
-    if (!FS.exist(path))
-    {
-        m_autoReady = LoadAuto();
-        OGSRMOC_ClearGeometryCapture();
-        m_sourceLoaded = m_autoReady;
-        return m_sourceLoaded;
-    }
-    IReader* reader = FS.r_open(path);
-    if (!reader) return false;
-    IReader* chunk = reader->open_chunk(1);
-    if (!chunk) { FS.r_close(reader); return false; }
-    const u32 nBytes = chunk->length();
-    const u32 nFaces = nBytes / sizeof(SerializedFace);
-    if (!nFaces || nBytes % sizeof(SerializedFace))
-    {
-        chunk->close(); FS.r_close(reader);
-        m_autoReady = LoadAuto();
-        OGSRMOC_ClearGeometryCapture();
-        m_sourceLoaded = m_autoReady;
-        return m_sourceLoaded;
-    }
-    m_faces.reserve(nFaces);
-    m_vertices.reserve(size_t(nFaces) * 3u);
-    for (u32 i=0; i<nFaces; ++i)
-    {
-        SerializedFace s{};
-        chunk->r(&s, sizeof(s));
-        Fvector edge1, edge2, cross;
-        edge1.sub(s.v2,s.v1); edge2.sub(s.v3,s.v1);
-        cross.crossproduct(edge1,edge2);
-        if (cross.square_magnitude() <= EPS_L * EPS_L) continue;
-        Face f;
-        f.box.invalidate();
-        f.box.modify(s.v1); f.box.modify(s.v2); f.box.modify(s.v3);
-        f.plane.build(s.v1,s.v2,s.v3);
-        f.center.add(s.v1,s.v2).add(s.v3).div(3.f);
-        f.flags = s.flags;
-        m_faces.push_back(f);
-        m_vertices.push_back(s.v1);
-        m_vertices.push_back(s.v2);
-        m_vertices.push_back(s.v3);
-    }
-    chunk->close(); FS.r_close(reader);
+    // MOC строится только по AutoHOM. Уровень без него работает на старом HOM (level.hom).
     m_autoReady = LoadAuto();
     OGSRMOC_ClearGeometryCapture(); // Keep only compact occluder geometry after level load.
-    m_sourceLoaded = !m_faces.empty() || m_autoReady;
-    Msg("* OGSR MOC: authored HOM faces %u, level %s", (u32)m_faces.size(), path);
+    m_sourceLoaded = m_autoReady;
     return m_sourceLoaded;
 #endif
 }
@@ -559,7 +508,6 @@ void COGSRMOC::Unload()
     ExchangeSnapshot(std::shared_ptr<const Snapshot>{});
     m_spare.reset();
     m_sourceLoaded = false;
-    m_faces.clear(); m_vertices.clear();
     m_autoReady=false; m_autoInputTriangles=0; m_autoVertices.clear(); m_autoClusters.clear();
     m_tests.store(0); m_rejected.store(0);
 }
@@ -577,7 +525,6 @@ void COGSRMOC::Build(CFrustum& frustum)
     next->hizProbed=next->hizHidden=next->candidates=0;
     next->hizSelection=false;
     next->hizVisibleAutoClusters.clear();
-    next->hizVisibleFaceIds.clear();
     next->frame = Device.dwFrame;
     next->full = Device.mFullTransform;
     next->camera = Device.vCameraPosition;
@@ -589,20 +536,14 @@ void COGSRMOC::Build(CFrustum& frustum)
     }
     next->context->SetNearClipPlane(VIEWPORT_NEAR);
     next->context->ClearBuffer();
-    // CPU occlusion raster budget, applied to both AutoHOM and authored HOM.
-    // Not a limit on geometry generation or the contents of .xmoc.
+    // CPU occlusion raster budget. Not a limit on geometry generation or the contents of .xmoc.
     constexpr u32 kRasterTriangleBudget = 12000u;
-    next->generated = (ps_r__moc_source == 1 && m_autoReady) || m_faces.empty();
     // True MOC/Hi-Z integration: pin one immutable GPU depth snapshot BEFORE
     // ranking CPU MOC occluders. If it is missing/stale/camera-incompatible,
     // run the entire original frustum-only path (fail open).
-    // Automatically use Hi-Z occluder selection in BOTH modes 1 and 2.
-    // Missing/stale snapshots fail open to frustum-only MOC selection.
-    // Mode 1 does NOT independently cull scene objects; mode 2 does.
     const OGSRHiZ::OccluderSelection hiz = OGSRHiZ::BeginOccluderSelection(
         next->full, next->camera, Device.vCameraDirection, next->frame);
     next->hizSelection = hiz.enabled;
-    if (next->generated && m_autoReady)
     {
         struct CandidateAuto
         {
@@ -678,54 +619,6 @@ void COGSRMOC::Build(CFrustum& frustum)
                 break;
         }
         flush();
-        const auto old=ExchangeSnapshot(std::shared_ptr<const Snapshot>(std::move(next)));
-        m_spare=std::const_pointer_cast<Snapshot>(old);
-        return;
-    }
-    struct Candidate
-    {
-        u32 index; float distance;
-        bool operator<(const Candidate& rhs) const { return distance < rhs.distance; }
-    };
-    std::vector<Candidate> candidates;
-    candidates.reserve(m_faces.size());
-    for (size_t i = 0; i < m_faces.size(); ++i)
-    {
-        const Face& f = m_faces[i];
-        u32 mask = frustum.getMask();
-        if (fcvNone == frustum.testAABB(&f.box.min.x, mask)) continue;
-        if (!f.flags && f.plane.classify(next->camera) <= 0.f) continue;
-        ++next->candidates;
-        if (hiz.enabled)
-        {
-            ++next->hizProbed;
-            if (OGSRHiZ::OccludedForOccluder(hiz,f.box))
-            { ++next->hizHidden; continue; }
-        }
-        candidates.push_back({static_cast<u32>(i), next->camera.distance_to_sqr(f.center)});
-        if (ps_r__moc_draw == 2)
-            next->hizVisibleFaceIds.push_back(static_cast<u32>(i));
-    }
-    std::sort(candidates.begin(), candidates.end());
-    // Authored level.hom uses the same 12K CPU budget as AutoHOM.
-    const size_t submittedCount = std::min(candidates.size(),
-        static_cast<size_t>(kRasterTriangleBudget));
-    std::vector<u32> indices;
-    indices.reserve(384 * 3);
-    MaskedOcclusionCulling::VertexLayout layout(sizeof(Fvector),4,8);
-    for (size_t i=0; i<submittedCount; ++i)
-    {
-        const u32 index = candidates[i].index * 3u;
-        indices.push_back(index);
-        indices.push_back(index+1);
-        indices.push_back(index+2);
-        if (indices.size() < 384u*3u && i+1<submittedCount) continue;
-        next->context->RenderTriangles(reinterpret_cast<const float*>(m_vertices.data()),
-            indices.data(), (int)(indices.size()/3), &next->full._11,
-            MaskedOcclusionCulling::BACKFACE_NONE,
-            MaskedOcclusionCulling::CLIP_PLANE_ALL, layout);
-        next->submittedTriangles += (u32)(indices.size()/3);
-        indices.clear();
     }
     // Build and query cannot overlap against the same context. Publishing only
     // happens after all rasterization is complete. Readers retain old snapshots.
@@ -775,23 +668,6 @@ BOOL COGSRMOC::Visible(const Fbox& B) const
     float xmin,ymin,xmax,ymax,clipW;
     if (!ProjectBox(B,snap->full,xmin,ymin,xmax,ymax,clipW)) return TRUE;
     return TestRect(xmin,ymin,xmax,ymax,clipW,snap);
-#else
-    return TRUE;
-#endif
-}
-
-BOOL COGSRMOC::VisiblePadded(const Fbox& B, float padPixels) const
-{
-#if defined(OGSR_USE_INTEL_MOC)
-    auto snap=LoadSnapshot();
-    if (!snap || snap->frame != Device.dwFrame || B.contains(snap->camera) ||
-        memcmp(&snap->full, &Device.mFullTransform, sizeof(Fmatrix)) != 0) return TRUE;
-    float xmin,ymin,xmax,ymax,w;
-    if(!ProjectBox(B,snap->full,xmin,ymin,xmax,ymax,w)) return TRUE;
-    const float px=std::max(0.f,padPixels);
-    xmin-=2.f*px/MOC_WIDTH;xmax+=2.f*px/MOC_WIDTH;
-    ymin-=2.f*px/MOC_HEIGHT;ymax+=2.f*px/MOC_HEIGHT;
-    return TestRect(xmin,ymin,xmax,ymax,w,snap);
 #else
     return TRUE;
 #endif
@@ -863,41 +739,24 @@ void COGSRMOC::DebugDraw() const
         v.p = c; batch.push_back(v);
         if (batch.size() >= 3u * 384u) flush();
     };
-    if (snap->generated)
+    if (ps_r__moc_draw == 2)
     {
-        if (ps_r__moc_draw == 2)
+        for (const u32 id : snap->hizVisibleAutoClusters)
         {
-            for (const u32 id : snap->hizVisibleAutoClusters)
-            {
-                if (id >= m_autoClusters.size()) continue;
-                const auto& ids = m_autoClusters[id].indices;
-                for (size_t k = 0; k + 2 < ids.size(); k += 3)
-                    add(m_autoVertices[ids[k]], m_autoVertices[ids[k + 1]], m_autoVertices[ids[k + 2]]);
-            }
-        }
-        else
-        {
-            for (const auto& cluster : m_autoClusters)
-            {
-                const auto& ids = cluster.indices;
-                for (size_t k = 0; k + 2 < ids.size(); k += 3)
-                    add(m_autoVertices[ids[k]], m_autoVertices[ids[k + 1]], m_autoVertices[ids[k + 2]]);
-            }
-        }
-    }
-    else if (ps_r__moc_draw == 2)
-    {
-        for (const u32 id : snap->hizVisibleFaceIds)
-        {
-            if (id >= m_faces.size()) continue;
-            const size_t i = size_t(id) * 3u;
-            add(m_vertices[i], m_vertices[i + 1], m_vertices[i + 2]);
+            if (id >= m_autoClusters.size()) continue;
+            const auto& ids = m_autoClusters[id].indices;
+            for (size_t k = 0; k + 2 < ids.size(); k += 3)
+                add(m_autoVertices[ids[k]], m_autoVertices[ids[k + 1]], m_autoVertices[ids[k + 2]]);
         }
     }
     else
     {
-        for (size_t i = 0; i + 2 < m_vertices.size(); i += 3)
-            add(m_vertices[i], m_vertices[i + 1], m_vertices[i + 2]);
+        for (const auto& cluster : m_autoClusters)
+        {
+            const auto& ids = cluster.indices;
+            for (size_t k = 0; k + 2 < ids.size(); k += 3)
+                add(m_autoVertices[ids[k]], m_autoVertices[ids[k + 1]], m_autoVertices[ids[k + 2]]);
+        }
     }
     flush();
 #endif
