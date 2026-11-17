@@ -59,7 +59,10 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
     else
         SSA = CalcHudSSA(distSQ, Center, pVisual);
 
-    if (SSA <= r_ssaDISCARD)
+    // a 3D model of the UI (CUIModels::render): its own camera, every visual drawn, no distortion pass, its own lists
+    const bool is_ui = !!RI.val_bUI;
+
+    if (!is_ui && SSA <= r_ssaDISCARD)
         return;
 
     // Distortive geometry should be marked and R2 special-cases it
@@ -67,7 +70,7 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
     // b) Should be rendered to special distort buffer in another pass
     VERIFY(pVisual->shader._get());
     ShaderElement* sh_d = &*pVisual->shader->E[4];
-    if (RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && pmask[sh_d->flags.iPriority / 2])
+    if (!is_ui && RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && pmask[sh_d->flags.iPriority / 2])
     {
         mapSorted_Node* N = mapDistort.insertInAnyWay(distSQ);
         N->val.ssa = SSA;
@@ -87,6 +90,18 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
     // Create common node
     // NOTE: Invisible elements exist only in R1
     _MatrixItem item = {SSA, RI.val_pObject, pVisual, *RI.val_pTransform};
+
+    // UI rendering: G-buffer elements by priority, strict sorted ones (glass, particles) in the forward pass of the tile
+    if (is_ui)
+    {
+        mapHUD_Node* N = sh->flags.bStrictB2F ? mapUISorted.insertInAnyWay(distSQ) : mapUI[sh->flags.iPriority / 2].insertInAnyWay(distSQ);
+        N->val.ssa = SSA;
+        N->val.pObject = RI.val_pObject;
+        N->val.pVisual = pVisual;
+        N->val.Matrix = *RI.val_pTransform;
+        N->val.se = sh;
+        return;
+    }
 
     // HUD rendering
     if (RI.val_bHUD)
@@ -511,7 +526,7 @@ void CRender::add_leafs_Dynamic(dxRender_Visual* pVisual)
     case MT_SKELETON_RIGID: {
         auto pV = reinterpret_cast<CKinematics*>(pVisual);
         BOOL _use_lod = FALSE;
-        if (pV->m_lod)
+        if (pV->m_lod && !val_bUI) // a 3D model of the UI is always its full model
         {
             Fvector Tpos;
             float D;

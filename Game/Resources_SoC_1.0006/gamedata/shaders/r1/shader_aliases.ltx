@@ -1,12 +1,19 @@
 ; Shaders that have no r1 version (mostly come from DX10/11 mods). A missing shader is drawn with the one on the right
 ; instead of def_shaders\def_vertex. The target must exist in shaders.xr or as r1\*.s. See r_shader_audit.
 [aliases]
-effects\ryska                   = effects\water
-effects\watdc                   = effects\water
-model\selflightl                = models\selflightl
-models\eyeflight                = models\selflight
-models\kamflight                = models\selflight
-models\svetofour                = models\selflight
-models\light_red                = models\selflight
-models\lfo_light_dot_weapons    = models\selflight
-models\miror                    = models\model
+effects\ryska = effects\water
+effects\swamp = effects\water
+effects\watdc = effects\water
+model\selflightl = models\selflightl
+models\eyeflight = models\selflight
+models\kamflight = models\selflight
+models\svetofour = models\selflight
+models\light_red = models\selflight
+models\lfo_light_dot_weapons = models\selflight
+models\miror = models\model
+
+; One texture of an existing shader drawn with another shader (key: <shader>/<first texture>, the lightmaps are not part of it)
+; lvl2_garbage pools are def_shaders\def_trans with water textures: water that reflects the sky
+[texture_aliases]
+def_shaders\def_trans/water\water_pool1 = effects\water_lmap
+def_shaders\def_trans/water\water_pool2 = effects\water_lmap

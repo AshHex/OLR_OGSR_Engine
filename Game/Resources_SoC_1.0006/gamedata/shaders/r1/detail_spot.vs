@@ -39,3 +39,7 @@ vf_spot main (av v) {
 
 	return o;
 }
+
+
+
+

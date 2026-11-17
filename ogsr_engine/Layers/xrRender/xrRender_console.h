@@ -3,6 +3,15 @@
 // Common
 extern ECORE_API u32 r2_SmapSize;
 
+// 3D models in UI (xrRenderPC_R4/r4_ui_models.cpp)
+extern int ps_r_ui3d_ssaa, ps_r_ui3d_ssaa_small;
+extern Fvector ps_r_ui3d_key_dir, ps_r_ui3d_key_color, ps_r_ui3d_fill_dir, ps_r_ui3d_fill_color, ps_r_ui3d_ambient;
+extern float ps_r_ui3d_exposure;
+// the outline of the tiles drawn now: hud_ui3d's ui3d_outline (premultiplied colour) and ui3d_outline_params (width, softness, mask range);
+// dxUIRender::SetShader puts them into the shader when they changed
+extern Fvector4 g_ui3d_outline, g_ui3d_outline_params;
+extern bool g_ui3d_outline_dirty;
+
 extern ECORE_API u32 ps_r_pp_aa_mode;
 
 extern ECORE_API u32 ps_r_sun_shafts;
@@ -60,6 +69,18 @@ extern ECORE_API float ps_r1_lmodel_lerp;
 extern ECORE_API float ps_r1_dlights_clip;
 extern ECORE_API float ps_r1_pps_u;
 extern ECORE_API float ps_r1_pps_v;
+
+// R1A
+extern ECORE_API int ps_r1a_hfog_enable;
+extern ECORE_API float ps_r1a_hfog_near_start;
+extern ECORE_API float ps_r1a_hfog_near_end;
+extern ECORE_API float ps_r1a_hfog_near_curve;
+extern ECORE_API float ps_r1a_hfog_edge;
+extern ECORE_API int ps_r1a_mipfog_enable;
+extern ECORE_API int ps_r1a_bloom_enable;
+extern ECORE_API float ps_r1a_bloom_threshold;
+extern ECORE_API float ps_r1a_bloom_soft;
+extern ECORE_API float ps_r1a_bloom_intensity;
 
 // R1-specific
 extern ECORE_API int ps_r1_GlowsPerFrame; // r1-only

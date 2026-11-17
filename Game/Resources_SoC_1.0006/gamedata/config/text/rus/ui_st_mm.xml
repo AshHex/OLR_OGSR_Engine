@@ -60,7 +60,7 @@
 	</string>
 	<string id="ui_st_invalid_saved_game">
 		<text>Не совпадает версия сохранённой игры или сохранённая игра испорчена.</text>
-	</string>	
+	</string>
 	<string id="ui_mm_delete_existing_file_q">
 		<text>Вы действительно хотите удалить файл?</text>
 	</string>
@@ -203,10 +203,10 @@
 	</string>
 	<string id="hint_caption_text">
 		<text>Нажмите кнопку 'Расширенные', чтобы изменить настройки, добавленные в OGSR</text>
-	</string>	
+	</string>
 	<string id="hint_caption_adv_text">
 		<text>Наведите курсор мыши на опцию и увидите здесь её описание. Таким образом вы сможете понять смысл незнакомых вам настроек, а так же новых настроек, добавленных в OGSR</text>
-	</string>	
+	</string>
 	<string id="ui_mm_simply">
 		<text>Базовые</text>
 	</string>
@@ -215,7 +215,7 @@
 	</string>
 	<string id="ui_mm_r2_ao">
 		<text>Ambient Occlusion (Затенение окружения)</text>
-	</string>		
+	</string>
 	<string id="ui_mm_r2_ao_intensity">
 		<text>Интенсивность AO</text>
 	</string>
@@ -238,10 +238,10 @@
 
 	<string id="ui_mm_r2_steep_parallax">
 		<text>Steep parallax</text>
-	</string>	
+	</string>
 	<string id="ui_mm_terrain_parallax">
 		<text>Parallax на текстурах земли</text>
-	</string>	
+	</string>
 	<string id="ui_mm_mt_texload">
 		<text>Многопоточная загрузка текстур</text>
 	</string>
@@ -271,10 +271,10 @@
 	</string>
 	<string id="ui_mm_detail_distance">
 		<text>Дальность отрисовки травы</text>
-	</string>	
+	</string>
 	<string id="ui_mm_detail_scale">
 		<text>Высота травы</text>
-	</string>	
+	</string>
 	<string id="ui_mm_soft_water">
 		<text>Мягкая вода</text>
 	</string>
@@ -286,7 +286,7 @@
 	</string>
 	<string id="st_opt_smaa">
 		<text>SMAA</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_sun">
 		<text>Тень от солнца</text>
 	</string>
@@ -298,7 +298,7 @@
 	</string>
 	<string id="ui_mm_r2_detail_bump">
 		<text>Детальный рельеф</text>
-	</string>		
+	</string>
 	<string id="ui_mm_r2_sunshafts">
 		<text>Объёмные лучи</text>
 	</string>
@@ -342,13 +342,13 @@
 	</string>
 	<string id="ui_mm_r2_true_sun_shadows">
 		<text>Правильные тени</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_soft_shadows">
 		<text>Мягкие края теней</text>
 	</string>
 	<string id="ui_mm_r2_lights_shadow_fade">
 		<text>Мягкие тени ламп</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_tonemap">
 		<text>Тональное отображение HDR</text>
 	</string>
@@ -375,7 +375,7 @@
 	</string>
 	<string id="ui_mm_r2_visor_refl">
 		<text>Отражения в шлеме</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_puddles">
 		<text>Лужи</text>
 	</string>
@@ -414,7 +414,7 @@
 	</string>
 	<string id="ui_mm_r__bloodmarks">
 		<text>Блудмарки</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_details_opt">
 		<text>Оптимизация травы</text>
 	</string>
@@ -430,12 +430,12 @@
 	<string id="ui_mm_r2_sun_near_border">
 		<text>Угол отрисовки теней</text>
 	</string>
-		<string id="ui_mm_r2_sun_lumscale">
+	<string id="ui_mm_r2_sun_lumscale">
 		<text>Яркость света солнца</text>
 	</string>
 	<string id="ui_mm_r_aa_mode">
 		<text>Сглаживание</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_gi">
 		<text>Глобальное освещение (экспериментально)</text>
 	</string>
@@ -634,7 +634,6 @@
 	<string id="ui_mm_default">
 		<text>По умолчанию</text>
 	</string>
-
 
 	<string id="video_settings_name_1">
 		<text>Multisample anti-aliasing - r3_msaa</text>

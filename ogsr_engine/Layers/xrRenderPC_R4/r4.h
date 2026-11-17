@@ -215,6 +215,15 @@ public:
     {
         if (0 == O)
             return;
+        // 3D models in UI (CUIModels): no lighting environment of the level, the tile is lit by its own rig (ui3d_light); fixed values instead
+        if (val_bUI)
+        {
+            o_hemi = 0.75f * 0.1f;
+            o_sun = 0.75f;
+            for (float& f : o_hemi_cube)
+                f = 0.1f;
+            return;
+        }
         if (0 == O->renderable_ROS())
             return;
         CROS_impl& LT = *((CROS_impl*)O->renderable_ROS());

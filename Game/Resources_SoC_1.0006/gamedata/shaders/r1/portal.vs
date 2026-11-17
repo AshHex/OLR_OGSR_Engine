@@ -5,6 +5,7 @@ struct vf
 	float4 hpos	: POSITION;
 	float4 c	: COLOR0;
 	float  fog	: FOG;
+	float3 fog_pos : TEXCOORD6;
 };
 
 vf main (v_vert v)
@@ -18,7 +19,15 @@ vf main (v_vert v)
 #endif	
 	
 	o.c 		= v.color;
-	o.fog 		= calc_fogging 		(v.P);				// fog, input in world coords
+	o.fog		= calc_fogging	(v.P);
+	o.fog_pos	= 	v.P.xyz;
 
 	return o;
 }
+
+
+
+
+
+
+

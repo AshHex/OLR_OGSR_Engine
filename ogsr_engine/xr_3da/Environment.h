@@ -166,6 +166,17 @@ public:
     float m_fWaterIntensity;
     float m_fTreeAmplitudeIntensity;
 
+    // R1A height fog over level.emitter and sky tinted fog (same weather keys as SOP)
+    Fvector3 emitter_color;
+    float emitter_height;
+    float emitter_power;
+    float emitter_noise_amp;
+    float emitter_noise_scale;
+    float emitter_noise_speed;
+    float mipfog_near_start;
+    float mipfog_directional;
+    float mipfog_amount;
+
     //	int					lens_flare_id;
     //	int					tb_id;
     shared_str lens_flare_id;

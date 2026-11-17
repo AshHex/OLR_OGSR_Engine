@@ -70,6 +70,30 @@ BOOL CRenderTarget::Create()
     RT_SecondVP.create(RTname_SecondVP, rtWidth, rtHeight, HW.Caps.fTarget); //--#SM+#-- +SecondVP+
     RT_BeforeUi.create("$user$viewport_temp_before_ui", rtWidth, rtHeight, HW.Caps.fTarget);
 
+    // R1A: sky lookup for the sky tinted fog and the bloom targets
+    {
+        u32 sw = Device.dwWidth, sh = Device.dwHeight;
+        for (u32 i = 0; i < sky_chain_count; ++i)
+        {
+            sw = _max(sw / 2, 8u);
+            sh = _max(sh / 2, 8u);
+            string64 name;
+            xr_sprintf(name, "$user$r1a_sky_chain%u", i);
+            RT_sky_chain[i].create(name, sw, sh, HW.Caps.fTarget);
+        }
+        RT_sky_lookup.create("$user$r1a_sky_lookup", _max(sw / 2, 8u), _max(sh / 2, 8u), HW.Caps.fTarget);
+
+        const u32 bw = _max(rtWidth / 4, 16u), bh = _max(rtHeight / 4, 16u);
+        RT_bloom[0].create("$user$r1a_tm_bloom0", bw, bh, HW.Caps.fTarget);
+        RT_bloom[1].create("$user$r1a_tm_bloom1", bw, bh, HW.Caps.fTarget);
+        RT_bloom[2].create("$user$r1a_tm_bloom2", bw, bh, HW.Caps.fTarget);
+        s_bloom_prefilter.create("r1a_bloom_prefilter");
+        s_bloom_blur_h.create("r1a_bloom_blur_h");
+        s_bloom_blur_v.create("r1a_bloom_blur_v");
+        s_bloom_combine.create("r1a_bloom_combine");
+        g_bloom.create(FVF::F_TL, RCache.Vertex.Buffer(), RCache.QuadIB);
+    }
+
     if ((rtHeight != Device.dwHeight) || (rtWidth != Device.dwWidth))
     {
         R_CHK(HW.pDevice->CreateDepthStencilSurface(rtWidth, rtHeight, HW.Caps.fDepth, D3DMULTISAMPLE_NONE, 0, TRUE, &ZB, NULL));
@@ -105,6 +129,17 @@ BOOL CRenderTarget::Create()
 
 CRenderTarget::~CRenderTarget()
 {
+    g_bloom.destroy();
+    s_bloom_combine.destroy();
+    s_bloom_blur_v.destroy();
+    s_bloom_blur_h.destroy();
+    s_bloom_prefilter.destroy();
+    for (auto& rt : RT_bloom)
+        rt.destroy();
+    RT_sky_lookup.destroy();
+    for (auto& rt : RT_sky_chain)
+        rt.destroy();
+
     _RELEASE(pFB);
     _RELEASE(pTempZB);
     _RELEASE(ZB);
@@ -221,7 +256,60 @@ BOOL CRenderTarget::NeedPostProcess()
 
 BOOL CRenderTarget::Perform()
 {
-    return Available() && (((BOOL)RImplementation.m_bMakeAsyncSS) || NeedPostProcess() || (ps_r__Supersample > 1) || (frame_distort == (Device.dwFrame - 1)));
+    return Available() && (((BOOL)RImplementation.m_bMakeAsyncSS) || NeedPostProcess() || NeedBloom() || (ps_r__Supersample > 1) || (frame_distort == (Device.dwFrame - 1)));
+}
+
+bool CRenderTarget::NeedBloom()
+{
+    return ps_r1a_bloom_enable && ps_r1a_bloom_intensity > 0.001f && g_pGameLevel && RT_bloom[0] && RT_bloom[1] && RT_bloom[2] && s_bloom_combine;
+}
+
+void CRenderTarget::draw_bloom_quad(u32 w, u32 h)
+{
+    u32 Offset;
+    const float _w = float(w) - .5f, _h = float(h) - .5f;
+    FVF::TL* pv = (FVF::TL*)RCache.Vertex.Lock(4, g_bloom.stride(), Offset);
+    pv->set(-.5f, _h, 0xffffffff, 0.f, 1.f);
+    pv++;
+    pv->set(-.5f, -.5f, 0xffffffff, 0.f, 0.f);
+    pv++;
+    pv->set(_w, _h, 0xffffffff, 1.f, 1.f);
+    pv++;
+    pv->set(_w, -.5f, 0xffffffff, 1.f, 0.f);
+    pv++;
+    RCache.Vertex.Unlock(4, g_bloom.stride());
+    RCache.set_Geometry(g_bloom);
+    RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
+}
+
+// SOP's r1a bloom: bright pass to 1/4, 2-pass gaussian, added to the scene
+void CRenderTarget::phase_bloom()
+{
+    const u32 bw = RT_bloom[0]->dwWidth, bh = RT_bloom[0]->dwHeight;
+    RCache.set_ZB(ZB);
+    RCache.set_CullMode(CULL_NONE);
+    RCache.set_Stencil(FALSE);
+
+    RCache.set_RT(RT_bloom[0]->pRT);
+    RCache.set_Shader(s_bloom_prefilter);
+    RCache.set_c("c_bloom_params", ps_r1a_bloom_threshold, ps_r1a_bloom_soft, 0.f, 0.f);
+    RCache.set_c("c_bloom_params2", 1.f / float(rtWidth), 1.f / float(rtHeight), 0.f, 0.f);
+    draw_bloom_quad(bw, bh);
+
+    RCache.set_RT(RT_bloom[1]->pRT);
+    RCache.set_Shader(s_bloom_blur_h);
+    RCache.set_c("c_blur_dir", 1.f / float(bw), 0.f, 0.f, 0.f);
+    draw_bloom_quad(bw, bh);
+
+    RCache.set_RT(RT_bloom[2]->pRT);
+    RCache.set_Shader(s_bloom_blur_v);
+    RCache.set_c("c_blur_dir", 0.f, 1.f / float(bh), 0.f, 0.f);
+    draw_bloom_quad(bw, bh);
+
+    RCache.set_RT(RT->pRT);
+    RCache.set_Shader(s_bloom_combine);
+    RCache.set_c("c_combine_params", ps_r1a_bloom_intensity, 0.f, 0.f, 0.f);
+    draw_bloom_quad(rtWidth, rtHeight);
 }
 
 #include <dinput.h>
@@ -320,6 +408,9 @@ void CRenderTarget::End()
         bDistort = FALSE;
     if (bDistort)
         phase_distortion();
+
+    if (bPerform && NeedBloom())
+        phase_bloom();
 
     // combination/postprocess
     RCache.set_RT(HW.pBaseRT);

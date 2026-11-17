@@ -8,6 +8,7 @@ struct vf
 	float4 c0	: COLOR0;		// c0=all lighting
 	float4 c1	: COLOR1;		// ps_1_1 read ports
 	float  fog	: FOG;
+	float3 fog_pos : TEXCOORD6;
 };
 
 vf main (v_vert v)
@@ -30,11 +31,19 @@ vf main (v_vert v)
 	float3 	L_sun 	= v_sun(N)*v.color.w;					// sun
 	float3 	L_final	= L_rgb + L_hemi + L_sun + L_ambient;
 
-	float2	dt 	= calc_detail		(v.P);
+	float2	dt 	= calc_detail		(v.P.xyz);
 
 	o.c0		= float4(L_final.x,L_final.y,L_final.z,dt.x);
 	o.c1		= dt.y;							//
-	o.fog 		= calc_fogging 		(v.P);			// fog, input in world coords
+	o.fog		= calc_fogging	(v.P);
+	o.fog_pos	= 	v.P.xyz;
 
 	return o;
 }
+
+
+
+
+
+
+

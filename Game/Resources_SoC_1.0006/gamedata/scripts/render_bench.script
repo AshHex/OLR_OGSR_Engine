@@ -5,30 +5,30 @@
 -- Отчёт: $logs$\render_bench_<рендер>_<уровень>.txt, скриншоты: $screenshots$\bench\<рендер>\<уровень>\
 --
 -- Сценарии:
---   panorama   - круговой обзор в точках по всему уровню (геометрия, LOD, детали, тени, туман)
---   timeofday  - смена времени суток: скайбокс, солнце, звёзды, освещение
---   weather    - погодные циклы и погодные эффекты (выброс)
---   npc        - НПС и мутанты днём и ночью (скиннинг, шейдеры моделей, тени)
---   fire       - партиклы огня/дыма (мягкие частицы, дисторшн, блендинг)
---   anomalies  - аномалии (зоны + их партиклы, дисторшн)
---   hud        - худовые анимации, прицеливание, фонарик, ПНВ, ноги от 1-го лица
---   water      - вода (точки ищутся по материалу геометрии; для болот - lvl8_swamp)
---   occlusion  - пары кадров с MOC/Hi-Z и без (ищем пропадающие объекты)
---   flythrough - пролёт над уровнем, замер производительности
---   shaders    - отчёт о недостающих шейдерах/текстурах (r_shader_audit)
+-- panorama - круговой обзор в точках по всему уровню (геометрия, LOD, детали, тени, туман)
+-- timeofday - смена времени суток: скайбокс, солнце, звёзды, освещение
+-- weather - погодные циклы и погодные эффекты (выброс)
+-- npc - НПС и мутанты днём и ночью (скиннинг, шейдеры моделей, тени)
+-- fire - партиклы огня/дыма (мягкие частицы, дисторшн, блендинг)
+-- anomalies - аномалии (зоны + их партиклы, дисторшн)
+-- hud - худовые анимации, прицеливание, фонарик, ПНВ, ноги от 1-го лица
+-- water - вода (точки ищутся по материалу геометрии; для болот - lvl8_swamp)
+-- occlusion - пары кадров с MOC/Hi-Z и без (ищем пропадающие объекты)
+-- flythrough - пролёт над уровнем, замер производительности
+-- shaders - отчёт о недостающих шейдерах/текстурах (r_shader_audit)
 -- ============================================================================
 
 local CFG_FILE = "misc\\render_bench.ltx"
 local ALL_SCENARIOS = {"panorama", "timeofday", "weather", "npc", "fire", "anomalies", "hud", "water", "occlusion", "flythrough", "shaders", "menu"}
 
 local ini = nil
-local co = nil              -- корутина бенчмарка
+local co = nil -- корутина бенчмарка
 local stop_requested = false
-local samples = nil         -- времена кадров (мс) во время замера
+local samples = nil -- времена кадров (мс) во время замера
 
-local report = {}           -- строки отчёта
+local report = {} -- строки отчёта
 local warnings = {}
-local totals = {}           -- сводка по сценариям
+local totals = {} -- сводка по сценариям
 local shot_idx = 0
 local render_name = "r?"
 local level_name = "level"
@@ -40,7 +40,7 @@ local deferred_ids = {}
 local particles = {}
 local saved = nil
 
-local G = {}                -- [general]
+local G = {} -- [general]
 
 -- Свой генератор случайных чисел: одинаковые точки на всех рендерах, независимо от других скриптов
 local rng_state = 1
@@ -524,6 +524,36 @@ function scenarios.timeofday()
 	end
 end
 
+-- Заданные виды для сравнения с другой игрой/рендером: [views] list = a, b; a = x, y, z, час[, курс, наклон]
+-- или a = x, y, z, час, dx, dy, dz (позиция и направление из rs_cam_pos). Курс и наклон в градусах;
+-- без курса снимается круговая панорама (directions направлений)
+function scenarios.views()
+	local S = "views"
+	local dirs = cfg_num(S, "directions", 8)
+	for _, name in ipairs(cfg_list(S, "list", {})) do
+		local v = cfg_nums(S, name, {})
+		if table.getn(v) < 4 then
+			warn("[views] %s: x, y, z, hour[, heading, pitch] expected", name)
+		else
+			set_hour(v[4])
+			local pos = vector():set(v[1], v[2], v[3])
+			if v[7] then
+				-- направление вектором, как его показывает rs_cam_pos (CAMERA DIR)
+				cam_look_at(pos, vector():set(v[1] + v[5], v[2] + v[6], v[3] + v[7]))
+				sample(S, name)
+			elseif v[5] then
+				set_cam(pos, v[5] * math.pi / 180, (v[6] or 0) * math.pi / 180)
+				sample(S, name)
+			else
+				for d = 0, dirs - 1 do
+					set_cam(pos, d * 2 * math.pi / dirs, (v[6] or 0) * math.pi / 180)
+					sample(S, string.format("%s_dir%d", name, d))
+				end
+			end
+		end
+	end
+end
+
 function scenarios.weather()
 	local S = "weather"
 	local pts = level_points(3)
@@ -780,7 +810,7 @@ function scenarios.water()
 			teleport_actor(ground_at(wp))
 			for _, hgt in ipairs(heights) do
 				local cp = vector():set(wp.x, wp.y + hgt, wp.z)
-				local pitch = hgt > 0 and -0.25 or 0.3   -- над водой смотрим на поверхность, под водой - вверх
+				local pitch = hgt > 0 and -0.25 or 0.3 -- над водой смотрим на поверхность, под водой - вверх
 				for d = 0, dirs - 1 do
 					set_cam(cp, d * 2 * math.pi / dirs, pitch)
 					sample(S, string.format("w%d_y%+.1f_dir%d_h%02d", i, hgt, d, hour))
@@ -1136,7 +1166,7 @@ function console_start(args)
 end
 
 -- Запуск без ручного ввода по командной строке (RenderBench.ps1):
---   xrEngine.exe -ltx test_r2.ltx -rbench npc+fire+hud [-rbench_keep] -start server(all/single/alife/load) client(localhost)
+-- xrEngine.exe -ltx test_r2.ltx -rbench npc+fire+hud [-rbench_keep] -start server(all/single/alife/load) client(localhost)
 -- Сценарии через '+' ('all' - все, 'cfg' - из [general]). Сам запуск делает движок (CGamePersistent::OnFrame, через ~5 с после
 -- загрузки уровня выполняет консольную команду render_bench); после бенчмарка игра закрывается, если нет -rbench_keep.
 

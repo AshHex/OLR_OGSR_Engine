@@ -133,6 +133,10 @@ void CUIInventoryWnd::Init()
     m_pUIOutfitList->SetAutoDelete(true);
     xml_init.InitDragDropListEx(uiXml, "dragdrop_outfit", 0, m_pUIOutfitList);
     BindDragDropListEnents(m_pUIOutfitList);
+    // the actor's 3D model in the outfit slot (old_outfit_slot_style)
+    m_pUIOutfitList->SetActorModelParams(!!uiXml.ReadAttribInt("dragdrop_outfit", 0, "model", 1), uiXml.ReadAttribFlt("dragdrop_outfit", 0, "model_fov", 20.f),
+                                         uiXml.ReadAttribFlt("dragdrop_outfit", 0, "model_scale", 1.1f), uiXml.ReadAttrib("dragdrop_outfit", 0, "model_legs_anim", nullptr),
+                                         uiXml.ReadAttrib("dragdrop_outfit", 0, "model_torso_anim", nullptr));
 
     if (Core.Features.test(xrCore::Feature::ogse_new_slots))
     {

@@ -4,34 +4,34 @@
 -- Так же исправлен вылет из-за большого кол-ва сейвов в папке.
 -- Сделано специально для использования с движком OGSR.
 
-function fill_savedgames_list( wnd )
-  if wnd.is_save_dlg then
-    local edit_box = wnd:GetEditBox("edit_filename")
-    edit_box:SetText("")
-  else
-    local picture = wnd:GetStatic("static_pict")
-    wnd.file_caption:SetText("")
-    wnd.file_data:SetText("")
-    picture:ResetOriginalRect()
-    picture:InitTexture("ui\\ui_noise")
-  end
-  --
-  local list_box = wnd:GetListWnd("list_window")
-  if list_box:GetSize() > 0 then
-    list_box:RemoveAll()
-    list_box:SetSelectedItem(-1)
-  end
-  --
-  local flist = getFS():file_list_open_ex( "$game_saves$", FS.FS_ListFiles + FS.FS_ClampExt + FS.FS_RootOnly + FS.FS_NoLower, "*.sav" )
-  flist:Sort(FS.FS_sort_by_modif_down)
-  for file in flist:GetAll() do
-    wnd:AddItemToList( file:NameFull(), file:Modif() )
-  end
+function fill_savedgames_list(wnd)
+	if wnd.is_save_dlg then
+		local edit_box = wnd:GetEditBox("edit_filename")
+		edit_box:SetText("")
+	else
+		local picture = wnd:GetStatic("static_pict")
+		wnd.file_caption:SetText("")
+		wnd.file_data:SetText("")
+		picture:ResetOriginalRect()
+		picture:InitTexture("ui\\ui_noise")
+	end
+	--
+	local list_box = wnd:GetListWnd("list_window")
+	if list_box:GetSize() > 0 then
+		list_box:RemoveAll()
+		list_box:SetSelectedItem(-1)
+	end
+	--
+	local flist = getFS():file_list_open_ex("$game_saves$", FS.FS_ListFiles + FS.FS_ClampExt + FS.FS_RootOnly + FS.FS_NoLower, "*.sav")
+	flist:Sort(FS.FS_sort_by_modif_down)
+	for file in flist:GetAll() do
+		wnd:AddItemToList(file:NameFull(), file:Modif())
+	end
 end
 
 local function delete_save_game(filename)
 	local save_file = filename .. ".sav"
-	local dds_file  = filename .. ".dds"
+	local dds_file = filename .. ".dds"
 	local f = getFS()
 
 	f:file_delete("$game_saves$", save_file)
@@ -42,30 +42,29 @@ local function delete_save_game(filename)
 end
 
 local function AddTimeDigit(dig)
-	return dig > 9 and dig or "0"..dig
+	return dig > 9 and dig or "0" .. dig
 end
 
 local function file_data(fname)
-	if getFS():exist("$game_saves$", fname..".sav") then
+	if getFS():exist("$game_saves$", fname .. ".sav") then
 		local sg = CSavedGameWrapper(fname)
-		local y,m,d,h,min,sec,ms = sg:game_time():get()
-		local date_time = AddTimeDigit(h)..":"..AddTimeDigit(min).." "..AddTimeDigit(m).."/"..AddTimeDigit(d).."/"..y
+		local y, m, d, h, min, sec, ms = sg:game_time():get()
+		local date_time = AddTimeDigit(h) .. ":" .. AddTimeDigit(min) .. " " .. AddTimeDigit(m) .. "/" .. AddTimeDigit(d) .. "/" .. y
 		local health = string.format("\\n%s %d%%", game.translate_string("ui_inv_health"), sg:actor_health() * 100)
-		return game.translate_string("st_level")..": "..game.translate_string(sg:level_name()).."\\n"..game.translate_string("ui_inv_time")..": "..date_time..health
+		return game.translate_string("st_level") .. ": " .. game.translate_string(sg:level_name()) .. "\\n" .. game.translate_string("ui_inv_time") .. ": " .. date_time .. health
 	else
 		return "no file data"
-	end	
+	end
 end
 
-
-class "save_load_item" (CUIListItemEx)
+class "save_load_item"(CUIListItemEx)
 function save_load_item:__init() super()
-	self:SetWndRect(0,0,430,22)
+	self:SetWndRect(0, 0, 430, 22)
 
 	self.fn = CUIStatic()
 	self.fn:SetAutoDelete(true)
 	self:AttachChild(self.fn)
-	self.fn:SetWndRect(0,0,230,22)
+	self.fn:SetWndRect(0, 0, 230, 22)
 	self.fn:SetText("filename")
 	self.fn:SetFont(GetFontLetterica18Russian())
 	self.fn:SetTextColor(255, 216, 186, 140)
@@ -74,19 +73,18 @@ function save_load_item:__init() super()
 	self.fage = CUIStatic()
 	self.fage:SetAutoDelete(true)
 	self:AttachChild(self.fage)
-	self.fage:SetWndRect(260,0,150,22)
+	self.fage:SetWndRect(260, 0, 150, 22)
 	self.fage:SetText("fileage")
 	self.fage:SetFont(GetFontLetterica16Russian())
 	self.fage:SetTextColor(255, 216, 186, 140)
 	self.fage:SetTextAlign(CGameFont.alRight)
 end
 function save_load_item:__finalize()
-	--log1("--save_load_item:__finalize() called!")
+	-- log1("--save_load_item:__finalize() called!")
 end
 
-
-class "save_load_dialog" (CUIScriptWnd)
-function save_load_dialog:__init( is_save_dlg ) super()
+class "save_load_dialog"(CUIScriptWnd)
+function save_load_dialog:__init(is_save_dlg) super()
 	self.is_save_dlg = is_save_dlg
 	if self.is_save_dlg then
 		self:InitControlsSave()
@@ -98,20 +96,19 @@ function save_load_dialog:__init( is_save_dlg ) super()
 end
 
 function save_load_dialog:__finalize()
-	--log1("--save_load_dialog:__finalize() called!")
+	-- log1("--save_load_dialog:__finalize() called!")
 end
 
-
 function save_load_dialog:InitControlsSave()
-	self:Init(0,0,1024,768)
+	self:Init(0, 0, 1024, 768)
 
 	local xml = CScriptXmlInit()
 	xml:ParseFile("ui_mm_save_dlg.xml")
 
 	xml:InitStatic("back_video", self)
 
-	xml:InitStatic("background", self)	
-	xml:InitStatic("newspaper_video", self)	
+	xml:InitStatic("background", self)
+	xml:InitStatic("newspaper_video", self)
 	self.form = xml:InitStatic("form", self)
 
 	xml:InitStatic("form:caption", self.form)
@@ -125,21 +122,21 @@ function save_load_dialog:InitControlsSave()
 	ctrl:ShowSelectedItem(true)
 	self:Register(ctrl, "list_window")
 
-	ctrl = xml:Init3tButton("form:btn_save", self.form)	
+	ctrl = xml:Init3tButton("form:btn_save", self.form)
 	self:Register(ctrl, "button_ok")
 
-	ctrl = xml:Init3tButton("form:btn_delete", self.form)	
+	ctrl = xml:Init3tButton("form:btn_delete", self.form)
 	self:Register(ctrl, "button_del")
 
 	ctrl = xml:Init3tButton("form:btn_cancel", self.form)
-	self:Register(ctrl, "button_cancel")	
+	self:Register(ctrl, "button_cancel")
 
 	self.message_box = CUIMessageBoxEx()
 	self:Register(self.message_box, "message_box")
 end
 
 function save_load_dialog:InitControlsLoad()
-	self:Init(0,0,1024,768)
+	self:Init(0, 0, 1024, 768)
 
 	local xml = CScriptXmlInit()
 	xml:ParseFile("ui_mm_load_dlg.xml")
@@ -166,19 +163,18 @@ function save_load_dialog:InitControlsLoad()
 	ctrl:ShowSelectedItem(true)
 	self:Register(ctrl, "list_window")
 
-	ctrl = xml:Init3tButton("form:btn_load", self.form)	
+	ctrl = xml:Init3tButton("form:btn_load", self.form)
 	self:Register(ctrl, "button_load")
 
-	ctrl = xml:Init3tButton("form:btn_delete", self.form)	
+	ctrl = xml:Init3tButton("form:btn_delete", self.form)
 	self:Register(ctrl, "button_del")
 
 	ctrl = xml:Init3tButton("form:btn_cancel", self.form)
-	self:Register(ctrl, "button_back")	
+	self:Register(ctrl, "button_back")
 
 	self.message_box = CUIMessageBoxEx()
-	self:Register(self.message_box,"message_box")
+	self:Register(self.message_box, "message_box")
 end
-
 
 function save_load_dialog:InitCallBacks()
 	self:AddCallback("list_window", ui_events.LIST_ITEM_CLICKED, self.OnListItemClicked, self)
@@ -194,7 +190,6 @@ function save_load_dialog:InitCallBacks()
 		self:AddCallback("list_window", ui_events.WINDOW_LBUTTON_DB_CLICK, self.OnButton_ok_clicked, self)
 	end
 end
-
 
 function save_load_dialog:OnListItemClicked()
 	if self.is_save_dlg then
@@ -240,17 +235,16 @@ function save_load_dialog:OnListItemClickedLoad()
 	self.file_caption:SetText(item_text)
 	self.file_data:SetText(file_data(item_text))
 
-	if not getFS():exist("$game_saves$", item_text..".sav") then
+	if not getFS():exist("$game_saves$", item_text .. ".sav") then
 		list_box:RemoveItem(itm_index)
 		return
 	end
 
-	if getFS():exist("$game_saves$", item_text..".dds") then
+	if getFS():exist("$game_saves$", item_text .. ".dds") then
 		picture:ResetOriginalRect()
 		picture:InitTexture(item_text)
 	end
 end
-
 
 function save_load_dialog:OnMsgYes()
 	if self.is_save_dlg then
@@ -259,7 +253,7 @@ function save_load_dialog:OnMsgYes()
 			self:OnButton_back_clicked()
 		elseif self.msgbox_id == 2 then
 			self:delete_selected_file()
-		end	
+		end
 	else
 		if self.msgbox_id == 1 then
 			self:delete_selected_file()
@@ -287,7 +281,6 @@ function save_load_dialog:delete_selected_file()
 	self:OnListItemClicked()
 end
 
-
 function save_load_dialog:load_game_internal()
 	local list = self:GetListWnd("list_window")
 
@@ -314,7 +307,6 @@ function save_load_dialog:SaveFile(fileName)
 	cmd("save " .. fileName)
 end
 
-
 function save_load_dialog:OnButton_ok_clicked()
 	if self.is_save_dlg then
 		self:OnButton_save_clicked()
@@ -325,18 +317,18 @@ end
 
 function save_load_dialog:OnButton_save_clicked()
 	local message_box = self.message_box
-	local main_frame = self:GetFrameWindow("main_frame")	
+	local main_frame = self:GetFrameWindow("main_frame")
 
 	local edit_box = self:GetEditBox("edit_filename")
-	self.new_save = edit_box:GetText():clear():gsub( '[%(%)]*', "" ):trim() --Вырезаем неподдерживаемые FS символы и пробелы по краям
+	self.new_save = edit_box:GetText():clear():gsub('[%(%)]*', ""):trim() -- Вырезаем неподдерживаемые FS символы и пробелы по краям
 	if self.new_save:len() == 0 then
 		self.msgbox_id = 0
-		self.message_box:Init("message_box_empty_file_name")		
+		self.message_box:Init("message_box_empty_file_name")
 		self:GetHolder():start_stop_menu(self.message_box, true)
 		return
 	end
 
-	local file_struct = getFS():exist("$game_saves$", self.new_save .. ".sav" )
+	local file_struct = getFS():exist("$game_saves$", self.new_save .. ".sav")
 	if file_struct then
 		self.msgbox_id = 1
 		self.message_box:Init("message_box_file_already_exist")
@@ -376,7 +368,6 @@ function save_load_dialog:OnButton_load_clicked()
 	end
 end
 
-
 function save_load_dialog:OnButton_back_clicked()
 	self:GetHolder():start_stop_menu(self, true)
 	self.owner:Show(true)
@@ -396,8 +387,8 @@ function save_load_dialog:OnButton_del_clicked()
 	self:GetHolder():start_stop_menu(self.message_box, true)
 end
 
-function save_load_dialog:OnKeyboard( dik, keyboard_action )
-	CUIScriptWnd.OnKeyboard( self, dik, keyboard_action )
+function save_load_dialog:OnKeyboard(dik, keyboard_action)
+	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
 		if dik == DIK_keys.DIK_RETURN or dik == DIK_keys.DIK_NUMPADENTER then
 			self:OnButton_ok_clicked()
@@ -414,7 +405,7 @@ function save_load_dialog:AddItemToList(file_name, date_time)
 	local itm = save_load_item()
 	itm.fn:SetText(file_name)
 	itm.fage:SetText(date_time)
-	
+
 	local list_box = self:GetListWnd("list_window")
 	list_box:AddItem(itm)
 end

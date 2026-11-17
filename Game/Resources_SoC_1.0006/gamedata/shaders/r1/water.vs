@@ -14,7 +14,22 @@ struct vf
 	float	fog		: FOG;
 };
 
-vf main (v_vert v)
+#ifdef WATER_LMAP
+// Lightmapped level geometry (water_lmap.vs, effects\water_lmap): no vertex colour, the level's lighting is in the lightmap,
+// so the water is lit by the open sky (hemi + sun + ambient), like r1\lmap.vs before its lightmap.
+struct v_water
+{
+	float4	P	: POSITION;
+	float4	N	: NORMAL;
+	float4	T	: TANGENT;
+	float4	B	: BINORMAL;
+	float2	uv	: TEXCOORD0;
+};
+#else
+#define v_water v_vert
+#endif
+
+vf main (v_water v)
 {
 	vf		o;
 	float4	P	= watermove(v.P);
@@ -25,10 +40,14 @@ vf main (v_vert v)
 	o.tnorm0	= watermove_tc(o.tbase*W_DISTORT_BASE_TILE_0, P.xz, W_DISTORT_AMP_0);
 	o.tnorm1	= watermove_tc(o.tbase*W_DISTORT_BASE_TILE_1, P.xz, W_DISTORT_AMP_1);
 
+#ifdef WATER_LMAP
+	o.c0		= v_hemi(N) + v_sun(N) + L_ambient;
+#else
 	float3	L_rgb	= v.color.xyz;
 	float3	L_hemi	= v_hemi(N)*v.N.w;
 	float3	L_sun	= v_sun(N)*v.color.w;
 	o.c0		= L_rgb + L_hemi + L_sun + L_ambient;
+#endif
 
 #ifdef RETRO_MODE
 	o.hpos = snap_to_position(mul(m_VP, P));

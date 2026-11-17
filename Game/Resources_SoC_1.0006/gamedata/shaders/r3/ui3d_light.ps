@@ -1,0 +1,50 @@
+#include "common.h"
+
+// 3D models in UI (r4_ui_models.cpp): lights the tile's G-buffer (the packed layout: normal xy, view z, material) with a fixed rig (two
+// directional lights + ambient, view space), then exposure, a filmic curve and sRGB. Background (nothing drawn: position cleared to 0) stays
+// transparent. Self-contained (Lambert + Blinn-Phong by the gloss), so it does not depend on the scene's lighting model of the shader set
+uniform float4 ui3d_tile; // xy: tile size / scratch size (uv scale)
+uniform float4 ui3d_proj; // x: 1 orthographic, yz: tan of the half field of view (x, y), perspective only
+uniform float4 ui3d_l0_dir, ui3d_l0_color; // direction the light travels, linear colour
+uniform float4 ui3d_l1_dir, ui3d_l1_color;
+uniform float4 ui3d_ambient; // rgb: linear ambient, w: exposure
+
+Texture2D s_ui3d_position;
+Texture2D s_ui3d_albedo;
+
+float3 ui3d_directional(float3 N, float3 V, float3 L, float3 albedo, float gloss)
+{
+    const float ndl = saturate(dot(N, L));
+    const float3 H = normalize(L + V);
+    const float spec = pow(saturate(dot(N, H)), 8.f + 56.f * gloss) * gloss * ndl;
+    return albedo * ndl + spec;
+}
+
+float4 main(p_screen I) : SV_Target
+{
+    const float2 tc = I.tc0 * ui3d_tile.xy;
+    const float4 P = s_ui3d_position.SampleLevel(smp_nofilter, tc, 0);
+    if (P.z <= 0.f)
+        return 0;
+
+    const float4 C = s_ui3d_albedo.SampleLevel(smp_nofilter, tc, 0);
+    const float3 N = normalize(gbuf_unpack_normal(P.xy));
+
+    float3 V;
+    if (ui3d_proj.x > 0.5f)
+        V = float3(0.f, 0.f, -1.f);
+    else
+    {
+        const float2 ndc = float2(I.tc0.x * 2.f - 1.f, 1.f - I.tc0.y * 2.f);
+        V = normalize(-float3(ndc * ui3d_proj.yz * P.z, P.z));
+    }
+
+    const float3 albedo = pow(max(C.rgb, 0.f), 2.2f);
+    float3 light = ui3d_directional(N, V, -normalize(ui3d_l0_dir.xyz), albedo, C.a) * ui3d_l0_color.rgb;
+    light += ui3d_directional(N, V, -normalize(ui3d_l1_dir.xyz), albedo, C.a) * ui3d_l1_color.rgb;
+    light += albedo * ui3d_ambient.rgb;
+
+    float3 c = light * ui3d_ambient.w;
+    c = 1.f - exp(-c); // filmic shoulder: no clipped highlights
+    return float4(pow(saturate(c), 1.f / 2.2f), 1.f);
+}

@@ -13,6 +13,163 @@
 #include "../Weapon.h"
 #include "../CustomOutfit.h"
 #include "UICellCustomItems.h"
+#include "UIModel.h"
+
+// console ui3d_cell_icons: 3D item icons in cells (with [ui3d_cell_icons] enabled)
+BOOL g_ui3d_cell_icons = TRUE;
+// console ui3d_cell_icons_scale: the size of every cell's 3D model in its cell (1 = fits), times the item's ui3d_cell_scale
+float g_ui3d_cell_icons_scale = 1.3f;
+
+const cell_settings_db::db& cell_settings_db::get()
+{
+    // read on the first call, not at the engine start
+    static const cell_settings_db::db cfgs;
+    return cfgs;
+}
+
+namespace
+{
+ui3d_cell_icons_settings::outline read_outline(LPCSTR sect, LPCSTR name, const ui3d_cell_icons_settings::outline& def)
+{
+    if (!pSettings->line_exist(sect, name))
+        return def;
+    // r, g, b, a (0..255), width, softness (screen pixels)
+    int c[4]{};
+    float w{}, s{1.f};
+    const int n = sscanf(pSettings->r_string(sect, name), "%d,%d,%d,%d,%f,%f", &c[0], &c[1], &c[2], &c[3], &w, &s);
+    if (n < 5)
+    {
+        Msg("! [%s] [%s] wants r, g, b, a, width [, softness]", sect, name);
+        return def;
+    }
+    return {color_argb(std::clamp(c[3], 0, 255), std::clamp(c[0], 0, 255), std::clamp(c[1], 0, 255), std::clamp(c[2], 0, 255)), w, s, true};
+}
+} // namespace
+
+ui3d_cell_icons_settings& ui3d_cell_icons()
+{
+    static ui3d_cell_icons_settings s = [] {
+        ui3d_cell_icons_settings r;
+        constexpr LPCSTR sect = "ui3d_cell_icons";
+        if (!pSettings->section_exist(sect))
+            return r;
+
+        r.enabled = READ_IF_EXISTS(pSettings, r_bool, sect, "enabled", r.enabled);
+        r.weapons = READ_IF_EXISTS(pSettings, r_bool, sect, "enabled_for_weapons", r.weapons);
+        r.ammo = READ_IF_EXISTS(pSettings, r_bool, sect, "enabled_for_ammo", r.ammo);
+
+        r.tilt = READ_IF_EXISTS(pSettings, r_float, sect, "tilt", r.tilt);
+
+        r.def = read_outline(sect, "outline_default", r.def);
+        for (u32 i = 0; i < std::size(r.outlines); ++i)
+            r.outlines[i] = read_outline(sect, ui3d_cell_icons_settings::outline_names[i], r.outlines[i]);
+        return r;
+    }();
+    return s;
+}
+
+shared_str CUICellItem::Icon3DSection() const
+{
+    auto* item = static_cast<CInventoryItem*>(m_pData);
+    return item ? item->object().cNameSect() : shared_str{};
+}
+
+void CUICellItem::Setup3DModel(CUIModel& m) { m.SetFromSection(Icon3DSection().c_str()); }
+
+int CUICellItem::HighlightState() const
+{
+    if (m_selected)
+        return 0;
+    if (m_select_armament)
+        return 1;
+    if (m_select_untradable)
+        return 2;
+    if (m_select_equipped)
+        return 3;
+    return -1;
+}
+
+void CUICellItem::Restore2DIcon()
+{
+    RemoveModel();
+    if (auto* item = static_cast<CInventoryItem*>(m_pData))
+        item->m_icon_params.set_shader(this);
+    TextureOn();
+}
+
+bool CUICellItem::Allows3DIcon() const { return false; }
+
+bool CUICellItem::Is3DIcon() const { return g_ui3d_cell_icons && m_icon3d_allowed && !m_icon3d_failed && Allows3DIcon() && ::Render->ui_model_supported(); }
+
+void CUICellItem::Update3DIcon()
+{
+    // another item section (the cell's data swapped): its own model, made again below
+    const shared_str section = Icon3DSection();
+    if (section != m_icon3d_section)
+    {
+        m_icon3d_section = section;
+        m_icon3d_allowed = section.size() && READ_IF_EXISTS(pSettings, r_bool, section, "ui3d_icon", true);
+        m_icon3d_failed = false;
+        if (GetModel())
+            Restore2DIcon();
+    }
+
+    if (!Is3DIcon())
+    {
+        // turned off (console, another renderer): back to the 2D icon
+        if (GetModel())
+            Restore2DIcon();
+        return;
+    }
+
+    const ui3d_cell_icons_settings& cfg = ui3d_cell_icons();
+    CUIModel& m = Model();
+    const bool vertical = m_pParentList && m_pParentList->GetVerticalPlacement();
+    // what the model shows changed (a weapon's addons or magazine), or the icon settings: made again
+    const u64 model_state = Icon3DState();
+    if (m.HasVisual() && (model_state != m_icon3d_state || m_icon3d_gen != g_ui3d_icons_gen))
+        m.ModelClear();
+    if (!m.HasVisual())
+    {
+        m_icon3d_state = model_state;
+        m_icon3d_gen = g_ui3d_icons_gen;
+        Setup3DModel(m);
+        if (!m.HasVisual())
+        {
+            // no model file (logged by SetFromSection): the 2D icon for good
+            m_icon3d_failed = true;
+            Restore2DIcon();
+            return;
+        }
+        // static in a cell: no animation, no turning per second (a turning icon would render every frame); the outline mask from the start
+        m.SetAnimated(false);
+        m.SetRotationPerFrame(Fvector{});
+        m.SetOutline(0, 0.f, 1.f);
+        m.OrientIcon(static_cast<float>(m_grid_size.x), static_cast<float>(m_grid_size.y), cfg.tilt, vertical);
+        m_icon3d_vertical = vertical;
+        // the cells' own scale on top of the model's (ui3d_icon_scale, every view of the model): the item's ui3d_cell_scale
+        m_icon3d_base_scale = m.GetScale();
+        m_icon3d_cell_scale = ui3d_icon_fixes::cell_scale(section);
+    }
+    else if (vertical != m_icon3d_vertical)
+    {
+        m.OrientIcon(static_cast<float>(m_grid_size.x), static_cast<float>(m_grid_size.y), cfg.tilt, vertical);
+        m_icon3d_vertical = vertical;
+    }
+
+    // the size in the cell: the model's scale x the item's ui3d_cell_scale x console ui3d_cell_icons_scale (a change: a new tile)
+    const float scale = m_icon3d_base_scale * m_icon3d_cell_scale * g_ui3d_cell_icons_scale;
+    if (!fsimilar(m.GetScale(), scale))
+        m.SetScale(scale);
+
+    // the outline of the highlight state, else the default one (changes cost nothing: the tile keeps its mask)
+    const int state = HighlightState();
+    const auto& o = state >= 0 && cfg.outlines[state].set ? cfg.outlines[state] : cfg.def;
+    m.SetOutline(o.color, o.width, o.softness);
+
+    if (m_selected)
+        m.MarkHovered();
+}
 
 CUICellItem* CUICellItem::m_mouse_selected_item = nullptr;
 
@@ -48,7 +205,17 @@ CUICellItem::~CUICellItem()
 void CUICellItem::Draw()
 {
     m_b_already_drawn = true;
+
+    // a 3D icon shows the cell's colour (ammo of the focused weapon, untradable, equipped) by its outline: drawn untinted unless
+    // [dragdrop] colorize_3d_icons (the static's colour keeps its alpha: the fades)
+    const bool untinted = GetModel() && !cell_settings_db::get().Colorize3DIcons;
+    const u32 color = GetUIStaticItem().GetColor();
+    if (untinted)
+        GetUIStaticItem().SetColor(subst_alpha(0xffffffff, color_get_A(color)));
     inherited::Draw();
+    if (untinted)
+        GetUIStaticItem().SetColor(color);
+
     if (m_custom_draw)
         m_custom_draw->OnDraw(this);
 };
@@ -315,7 +482,10 @@ Fvector2 CUIDragItem::GetPosition() { return Fvector2().add(m_pos_offset, GetUIC
 
 void CUICellItem::Update()
 {
-    EnableHeading(m_pParentList->GetVerticalPlacement());
+    Update3DIcon();
+
+    // a vertical list turns the 2D icon; a 3D icon is turned in its model (OrientIcon), its tile has the window's shape
+    EnableHeading(m_pParentList->GetVerticalPlacement() && !GetModel());
     if (Heading())
     {
         SetHeading(90.0f * (PI / 180.0f));

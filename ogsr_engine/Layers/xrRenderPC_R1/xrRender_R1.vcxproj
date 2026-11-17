@@ -230,6 +230,7 @@
     <ClInclude Include="..\xrRenderDX9\dx9R_Backend_Runtime.h" />
     <ClInclude Include="..\xrRenderDX9\dx9r_constants_cache.h" />
     <ClInclude Include="..\xrRender\Animation.h" />
+    <ClInclude Include="..\xrRender\UIModels.h" />
     <ClInclude Include="..\xrRender\AnimationKeyCalculate.h" />
     <ClInclude Include="..\xrRender\blenders\Blender.h" />
     <ClInclude Include="..\xrRender\blenders\Blender_CLSID.h" />
@@ -343,6 +344,7 @@
     <ClInclude Include="FStaticRender_RenderTarget.h" />
     <ClInclude Include="GlowManager.h" />
     <ClInclude Include="LightPPA.h" />
+    <ClInclude Include="r1a_fog.h" />
     <ClInclude Include="LightProjector.h" />
     <ClInclude Include="LightShadows.h" />
     <ClInclude Include="stdafx.h" />
@@ -350,6 +352,7 @@
   <ItemGroup>
     <ClCompile Include="..\xrRenderDX9\dx9r_constants_cache.cpp" />
     <ClCompile Include="..\xrRender\Animation.cpp" />
+    <ClCompile Include="..\xrRender\UIModels.cpp" />
     <ClCompile Include="..\xrRender\blenders\Blender.cpp" />
     <ClCompile Include="..\xrRender\blenders\Blender_Palette.cpp" />
     <ClCompile Include="..\xrRender\blenders\Blender_Recorder.cpp" />
@@ -477,6 +480,7 @@
     <ClCompile Include="FStaticRender_RenderTarget.cpp" />
     <ClCompile Include="GlowManager.cpp" />
     <ClCompile Include="LightPPA.cpp" />
+    <ClCompile Include="r1a_fog.cpp" />
     <ClCompile Include="LightProjector.cpp" />
     <ClCompile Include="LightShadows.cpp" />
     <ClCompile Include="stdafx.cpp">

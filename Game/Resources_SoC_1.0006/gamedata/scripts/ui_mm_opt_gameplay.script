@@ -1,6 +1,6 @@
---Меню настроек геймплея. Используется скриптом ui_mm_opt_main.script
+-- Меню настроек геймплея. Используется скриптом ui_mm_opt_main.script
 
-class "opt_gameplay" (CUIWindow)
+class "opt_gameplay"(CUIWindow)
 function opt_gameplay:__init() super()
 end
 

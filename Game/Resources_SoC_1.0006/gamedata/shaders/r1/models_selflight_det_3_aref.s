@@ -20,9 +20,5 @@ function l_spot		(shader, t_base, t_second, t_detail)
 	r1_lspot	(shader, t_base, "model_def_spot", 200)
 end
 
-function l_special	(shader, t_base, t_second, t_detail)
-	shader:begin	("model_def_shadow","model_shadow")
-			: fog		(false)
-			: zb		(false,false)
-			: blend		(true,blend.zero,blend.srccolor)
-end
+-- l_special (SE_R1_LMODELS) намеренно не задан: ноги от 1-го лица не должны отбрасывать
+-- проецируемую тень (её уже даёт модель игрока), как и в r3/r4.

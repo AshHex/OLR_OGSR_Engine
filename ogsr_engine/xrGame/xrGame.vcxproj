@@ -1590,6 +1590,8 @@
     <ClInclude Include="UICustomItem.h" />
     <ClInclude Include="ui\UIMultiTextStatic.h" />
     <ClInclude Include="ui\UIStatic.h" />
+    <ClInclude Include="ui\UIModel.h" />
+    <ClInclude Include="ui\UI3dStatic.h" />
     <ClInclude Include="UIStaticItem.h" />
     <ClInclude Include="ui\UITextBanner.h" />
     <ClInclude Include="ui\UIEditBox.h" />
@@ -2522,6 +2524,8 @@
     <ClCompile Include="UICustomItem.cpp" />
     <ClCompile Include="ui\UIMultiTextStatic.cpp" />
     <ClCompile Include="ui\UIStatic.cpp" />
+    <ClCompile Include="ui\UIModel.cpp" />
+    <ClCompile Include="ui\UI3dStatic.cpp" />
     <ClCompile Include="ui\UIStatic_script.cpp" />
     <ClCompile Include="UIStaticItem.cpp" />
     <ClCompile Include="ui\UITextBanner.cpp" />

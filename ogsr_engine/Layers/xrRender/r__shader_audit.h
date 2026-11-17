@@ -16,3 +16,8 @@ u32 RAudit_Run(bool b_scan_meshes);
 // Алиас для шейдера, которого нет у текущего рендера: gamedata\shaders\<r1|r2|r3>\shader_aliases.ltx, секция [aliases]
 // ("models\kamflight = models\selflight"). Возвращает nullptr, если алиаса нет.
 LPCSTR RAudit_FindAlias(LPCSTR shader);
+
+// Замена шейдера для одной текстуры: секция [texture_aliases] того же файла, ключ "<шейдер>/<первая текстура>"
+// ("def_shaders\def_trans/water\water_pool1 = effects\water_lmap": лужи, которые уровень рисует как стекло).
+// Работает и для шейдеров, которые у рендера есть. Возвращает nullptr, если замены нет.
+LPCSTR RAudit_FindTextureAlias(LPCSTR shader, LPCSTR textures);

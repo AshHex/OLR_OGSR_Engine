@@ -319,6 +319,13 @@ Shader* CResourceManager::Create(LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_co
     if (!g_dedicated_server)
 #endif
     {
+#ifndef _EDITOR
+        // Замена шейдера для конкретной текстуры (shader_aliases.ltx, [texture_aliases]): например, лужи lvl2_garbage, которые
+        // уровень рисует как def_shaders\def_trans, получают воду с отражением неба
+        if (LPCSTR alias = RAudit_FindTextureAlias(s_shader, s_textures); alias && xr_strcmp(alias, s_shader) && (_lua_HasShader(alias) || _FindBlender(alias)))
+            s_shader = alias;
+#endif
+
         //	TODO: DX10: When all shaders are ready switch to common path
 #if defined(USE_DX10) || defined(USE_DX11)
         if (_lua_HasShader(s_shader))

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 #include "../xrRender/fbasicvisual.h"
 #include "../../xr_3da/fmesh.h"
 #include "../../xr_3da/xrLevel.h"
@@ -7,6 +7,7 @@
 #include "../../xrCore/stream_reader.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
+#include "r1a_fog.h"
 
 #pragma warning(push)
 #pragma warning(disable : 4995)
@@ -87,6 +88,10 @@ void CRender::level_Load(IReader* fs)
     // HOM
     HOM.Load();
 
+    // R1A height fog emitters
+    if (!g_dedicated_server)
+        R1A.level_load();
+
     // Lights
     // pApp->LoadTitle				("Loading lights...");
     LoadLights(fs);
@@ -107,6 +112,7 @@ void CRender::level_Unload()
 
     // HOM
     HOM.Unload();
+    R1A.level_unload();
 
     //*** Details
     Details->Unload();

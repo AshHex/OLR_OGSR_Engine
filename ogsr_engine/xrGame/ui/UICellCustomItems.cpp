@@ -10,6 +10,9 @@
 #include "../Actor.h"
 #include "UIInventoryWnd.h"
 #include "UICursor.h"
+#include "UIModel.h"
+#include "../../Include/xrRender/Kinematics.h"
+#include "../../xr_3da/vismask.h"
 
 #define INV_GRID_WIDTHF 50.0f
 #define INV_GRID_HEIGHTF 50.0f
@@ -331,6 +334,45 @@ void CUIWeaponCellItem::Update()
                 DestroyIcon(eLauncher);
         }
     }
+
+    // a 3D icon: the model shows the weapon with its addons; the addon icons hidden
+    const bool model = GetModel() != nullptr;
+    for (CUIStatic* addon : m_addons)
+        if (addon)
+            addon->Show(!model);
+}
+
+void CUIWeaponCellItem::Setup3DModel(CUIModel& m)
+{
+    // the world model with the attached addons and its visual's bone state (addons, magazine) as the object has them
+    const shared_str scope = is_scope() ? object()->GetScopeName() : shared_str{};
+    m.SetWeaponItem(object()->cNameSect().c_str(), scope.size() ? scope.c_str() : "", is_silencer(), is_launcher());
+    if (m.HasVisual())
+        m.CopyWeaponBones(smart_cast<IKinematics*>(object()->Visual()));
+}
+
+u64 CUIWeaponCellItem::Icon3DState()
+{
+    // the addons and the scope, and the object's bone state (an addon or the magazine shown or hidden)
+    struct
+    {
+        u64 scope, bones[2];
+        u32 flags;
+    } s;
+    std::memset(&s, 0, sizeof(s));
+    s.flags = (is_scope() ? 1u : 0u) | (is_silencer() ? 2u : 0u) | (is_launcher() ? 4u : 0u);
+    if (is_scope())
+    {
+        const shared_str& name = object()->GetScopeName();
+        s.scope = std::hash<std::string_view>{}(std::string_view{name.c_str(), name.size()});
+    }
+    if (IKinematics* k = smart_cast<IKinematics*>(object()->Visual()))
+    {
+        const VisMask mask = k->LL_GetBonesVisible();
+        s.bones[0] = mask._visimask.flags;
+        s.bones[1] = mask._visimask_ex.flags;
+    }
+    return std::hash<std::string_view>{}(std::string_view{reinterpret_cast<const char*>(&s), sizeof(s)});
 }
 
 void CUIWeaponCellItem::OnAfterChild(CUIDragDropListEx* parent_list)
@@ -448,6 +490,10 @@ CUIStatic* MakeAddonStatic(CUIDragItem* i, CIconParams& params)
 
 CUIDragItem* CUIWeaponCellItem::CreateDragItem()
 {
+    // a 3D icon: the drag static shows the cell's tile (the model with its addons), no addon icons
+    if (GetModel())
+        return inherited::CreateDragItem();
+
     CUIDragItem* i = inherited::CreateDragItem();
 
     CIconParams params;

@@ -158,6 +158,43 @@ public:
 };
 
 //////////////////////////////////////////////////////////////////////////
+// 3D models in UI: every model is rendered offscreen into its own tile of an atlas page (lit, supersampled, premultiplied alpha), the UI draws
+// the tile as a texture (CUIModels, xrRenderPC_R4/r4_ui_models.h; ported from OGSR_Engine_private)
+class IUIModelSource
+{
+public:
+    virtual ~IUIModelSource() = default;
+    // Called inside IRender_interface::ui_model_render: adds the model's visuals (set_Object / set_Transform / add_Visual). Coordinates are
+    // the world space of the tile camera (ui_model_view)
+    virtual void ui_model_add_visuals() = 0;
+};
+
+struct ui_model_view
+{
+    Fmatrix view; // camera of the tile
+    Fmatrix project;
+    bool ortho{true};
+    float tan_half_fov_x{}, tan_half_fov_y{}; // perspective only
+    // ground under a particle effect, a plane in the tile's view space (normal xyz, w: d); zero: none
+    Fvector4 ground{};
+    // the resolve also writes the silhouette distance mask of the tile (the outline drawn by hud\ui3d, ui_model_outline): costs a disc
+    // search per pixel, so only for models that use an outline
+    bool outline_mask{};
+};
+
+// the largest outline / glow width in pixels the mask holds (the distance is stored up to it; the tile keeps this much padding)
+constexpr float ui_model_outline_max = 20.f;
+
+// counters of the 3D models in UI atlas (IRender_interface::ui_model_get_stats): renders, shared tiles found / made, cached tiles evicted since
+// start; tiles in use (cached ones included), cached ones (shared, no model holds them) and pages now
+struct ui_model_stats
+{
+    u32 renders{}, shared_hits{}, shared_misses{}, cache_evicted{};
+    u32 tiles{}, cached{}, pages{};
+    u32 page_size{}; // pixels per side
+};
+
+//////////////////////////////////////////////////////////////////////////
 // definition (Renderer)
 class ENGINE_API IRender_interface
 {
@@ -299,6 +336,32 @@ public:
 
     // Есть ли партикл (эффект или группа) - model_CreateParticles на несуществующем имени вылетает (бенчмарк рендера)
     virtual bool model_ParticlesExist(LPCSTR name) = 0;
+
+    // 3D models in UI (IUIModelSource). Every renderer draws them (xrRender\UIModels.cpp); one that cannot returns no tile (0), so the UI
+    // keeps its 2D icons. Tile ids are > 0, 0 = no tile (no space). Sizes in display pixels
+    virtual bool ui_model_supported() { return false; }
+    virtual u32 ui_model_tile_alloc(u32 w, u32 h) { return 0; }
+    // the tile of an image key (a still model: everything its image depends on, the size included), shared by every model with that key: the
+    // first one renders it (ui_model_tile_texture false until then), the others draw it. Freed with ui_model_tile_free as an own tile; one no
+    // model holds stays cached with its image and is evicted first when room is needed (least recently drawn first)
+    virtual u32 ui_model_tile_shared(u64 key, u32 w, u32 h) { return 0; }
+    // an own tile is freed; a shared one loses a holder
+    virtual void ui_model_tile_free(u32 tile) {}
+    // false once the tile is gone: freed, or evicted to make room (not drawn for a few frames while the atlas was full); allocate again
+    virtual bool ui_model_tile_alive(u32 tile) { return false; }
+    // texture name of the tile's page and the tile's rect in it, in pixels; false while the tile holds no image (not rendered yet, lost by a
+    // device reset)
+    virtual bool ui_model_tile_texture(u32 tile, shared_str& texture, Frect& rect) { return false; }
+    // renders the model into the tile now (between UI draws, main thread); the UI's render state is restored after it
+    virtual void ui_model_render(u32 tile, const ui_model_view& view, IUIModelSource& source) {}
+    virtual void ui_model_get_stats(ui_model_stats& stats) { stats = {}; }
+    // every tile renders again when drawn next (as after a device reset)
+    virtual void ui_model_invalidate_all() {}
+    // frees the cached tiles no model holds; returns how many
+    virtual u32 ui_model_evict_cached() { return 0; }
+    // the outline of the next draws of tiles (hud\ui3d) until set again: colour (alpha = strength), width and softness in screen pixels;
+    // width 0: none. Set around one static's draw (the UI draws each static at once)
+    virtual void ui_model_outline(const Fcolor& color, float width, float softness) {}
 
     // Constructor/destructor
     virtual ~IRender_interface();

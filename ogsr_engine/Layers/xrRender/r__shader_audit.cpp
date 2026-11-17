@@ -304,7 +304,7 @@ u32 RAudit_Run(bool b_scan_meshes)
     return n_missing_cur;
 }
 
-LPCSTR RAudit_FindAlias(LPCSTR shader)
+static CInifile* aliases_ini()
 {
     static CInifile* aliases = nullptr;
     static bool loaded = false;
@@ -316,7 +316,30 @@ LPCSTR RAudit_FindAlias(LPCSTR shader)
         if (FS.exist(fn, "$game_shaders$", name))
             aliases = xr_new<CInifile>(fn, TRUE, TRUE, FALSE);
     }
+    return aliases;
+}
+
+LPCSTR RAudit_FindAlias(LPCSTR shader)
+{
+    CInifile* aliases = aliases_ini();
     if (!aliases || !shader || !aliases->line_exist("aliases", shader))
         return nullptr;
     return aliases->r_string("aliases", shader);
+}
+
+LPCSTR RAudit_FindTextureAlias(LPCSTR shader, LPCSTR textures)
+{
+    CInifile* aliases = aliases_ini();
+    if (!aliases || !shader || !textures || !aliases->section_exist("texture_aliases"))
+        return nullptr;
+
+    // "<shader>/<first texture>", the rest of the list (lightmaps) is not part of the key
+    string_path key;
+    xr_sprintf(key, "%s/%s", shader, textures);
+    if (char* comma = strchr(key, ','))
+        *comma = 0;
+    _strlwr(key);
+    if (!aliases->line_exist("texture_aliases", key))
+        return nullptr;
+    return aliases->r_string("texture_aliases", key);
 }

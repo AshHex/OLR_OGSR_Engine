@@ -397,6 +397,52 @@ void get_pos_bones(const vertBoned4W& vert, Fvector& p, CKinematics* Parent)
     p.add(P3);
 }
 
+namespace
+{
+bool posed_bone_skipped(CKinematics* K, const xr_vector<bool>* skip, const u16 bone) { return !K->LL_GetBoneVisible(bone) || (skip && bone < skip->size() && (*skip)[bone]); }
+
+bool posed_vertex_skipped(const vertBoned1W& v, CKinematics* K, const xr_vector<bool>* skip) { return posed_bone_skipped(K, skip, static_cast<u16>(v.matrix)); }
+bool posed_vertex_skipped(const vertBoned2W& v, CKinematics* K, const xr_vector<bool>* skip) { return posed_bone_skipped(K, skip, v.matrix0) || posed_bone_skipped(K, skip, v.matrix1); }
+bool posed_vertex_skipped(const vertBoned3W& v, CKinematics* K, const xr_vector<bool>* skip)
+{
+    return std::any_of(std::begin(v.m), std::end(v.m), [&](const u16 b) { return posed_bone_skipped(K, skip, b); });
+}
+bool posed_vertex_skipped(const vertBoned4W& v, CKinematics* K, const xr_vector<bool>* skip)
+{
+    return std::any_of(std::begin(v.m), std::end(v.m), [&](const u16 b) { return posed_bone_skipped(K, skip, b); });
+}
+
+template <typename T>
+void add_posed_vertices(ref_smem<T>& verts, CKinematics* K, const xr_vector<bool>* skip, Fbox& box)
+{
+    if (!*verts)
+        return;
+    const size_t n = verts.size();
+    for (size_t i = 0; i < n; ++i)
+    {
+        const T& v = verts[i];
+        if (posed_vertex_skipped(v, K, skip))
+            continue;
+        Fvector p;
+        get_pos_bones(v, p, K);
+        box.modify(p);
+    }
+}
+} // namespace
+
+void CSkeletonX::AddPosedBox(Fbox& box, const xr_vector<bool>* skip_bones)
+{
+    switch (RenderMode)
+    {
+    case RM_SINGLE:
+    case RM_SKINNING_1B: add_posed_vertices(Vertices1W, Parent, skip_bones, box); break;
+    case RM_SKINNING_2B: add_posed_vertices(Vertices2W, Parent, skip_bones, box); break;
+    case RM_SKINNING_3B: add_posed_vertices(Vertices3W, Parent, skip_bones, box); break;
+    case RM_SKINNING_4B: add_posed_vertices(Vertices4W, Parent, skip_bones, box); break;
+    default: break;
+    }
+}
+
 //-----------------------------------------------------------------------------------------------------
 // Wallmarks
 //-----------------------------------------------------------------------------------------------------

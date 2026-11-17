@@ -1,4 +1,4 @@
-// CRender.cpp: implementation of the CRender class.
+﻿// CRender.cpp: implementation of the CRender class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -15,6 +15,7 @@
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/dxWallMarkArray.h"
 #include "../xrRender/dxUIShader.h"
+#include "r1a_fog.h"
 //#include "../../xrServerEntities/smart_cast.h"
 
 using namespace R_dsgraph;
@@ -26,7 +27,11 @@ ShaderElement* CRender::rimp_select_sh_dynamic(dxRender_Visual* pVisual, float c
 {
     switch (phase)
     {
-    case PHASE_NORMAL: return (RImplementation.L_Projector->shadowing() ? pVisual->shader->E[SE_R1_NORMAL_HQ] : pVisual->shader->E[SE_R1_NORMAL_LQ])._get();
+    case PHASE_NORMAL:
+        // a 3D model of the UI: the LQ element (lit by the constants alone, no projector of the level)
+        if (val_bUI)
+            return pVisual->shader->E[SE_R1_NORMAL_LQ]._get();
+        return (RImplementation.L_Projector->shadowing() ? pVisual->shader->E[SE_R1_NORMAL_HQ] : pVisual->shader->E[SE_R1_NORMAL_LQ])._get();
     case PHASE_POINT: return pVisual->shader->E[SE_R1_LPOINT]._get();
     case PHASE_SPOT: return pVisual->shader->E[SE_R1_LSPOT]._get();
     default: NODEFAULT;
@@ -63,6 +68,7 @@ void CRender::create()
     dxRenderDeviceRender::Instance().Resources->RegisterConstantSetup("L_dynamic_pos", &r1_dlight_binder_PR);
     dxRenderDeviceRender::Instance().Resources->RegisterConstantSetup("L_dynamic_color", &r1_dlight_binder_color);
     dxRenderDeviceRender::Instance().Resources->RegisterConstantSetup("L_dynamic_xform", &r1_dlight_binder_xform);
+    R1A.create();
 
     // distortion
     u32 v_dev = CAP_VERSION(HW.Caps.raster_major, HW.Caps.raster_minor);
@@ -108,6 +114,8 @@ void CRender::create()
 void CRender::destroy()
 {
     m_bMakeAsyncSS = false;
+    R1A.destroy();
+    UIModels.destroy();
     ::PortalTraverser.destroy();
     //.	HWOCC.occq_destroy			();
     PSLibrary.OnDestroy();
@@ -125,6 +133,9 @@ void CRender::destroy()
 extern u32 reset_frame;
 void CRender::reset_begin()
 {
+    // the 3D model tiles: the depth surface made for them is released before the device reset, the images are rendered again
+    UIModels.reset_begin();
+
     reset_frame = Device.dwFrame;
     // AVO: let's reload details while changed details options on vid_restart
     if (b_loaded && ((dm_current_size != dm_size) || (ps_r__Detail_density != ps_current_detail_density)))
@@ -379,6 +390,13 @@ void CRender::apply_object(IRenderable* O)
 {
     if (0 == O)
         return;
+    // 3D models in UI (CUIModels): no lighting environment of the level; the rig comes through L_sun_* / L_hemi_color / L_ambient
+    // (Blender_Recorder_StandartBinding.cpp), the object takes all of them
+    if (val_bUI)
+    {
+        RCache.set_c(c_ldynamic_props, 1.f, 1.f, 1.f, 1.f);
+        return;
+    }
     if (PHASE_NORMAL == phase && O->renderable_ROS())
     {
         CROS_impl& LT = *((CROS_impl*)O->renderable.pROS);
@@ -663,6 +681,7 @@ void CRender::Render()
     Device.Statistic->RenderDUMP.Begin();
     // Begin
     Target->Begin();
+    R1A.bind_textures(); // R1A fog lookups on s10/s11
     o.vis_intersect = FALSE;
     phase = PHASE_NORMAL;
     r_dsgraph_render_hud(); // hud
@@ -673,6 +692,7 @@ void CRender::Render()
 
     g_pGamePersistent->Environment().RenderSky(); // sky / sun
     g_pGamePersistent->Environment().RenderClouds(); // clouds
+    R1A.capture_sky_lookup(); // the frame with the sky -> R1A sky tinted fog of the next frame
 
     r_pmask(true, false); // disable priority "1"
     o.vis_intersect = TRUE;
@@ -882,6 +902,11 @@ static HRESULT create_shader(LPCSTR const pTarget, DWORD const* buffer, u32 cons
 
 HRESULT CRender::shader_compile(LPCSTR name, DWORD const* pSrcData, UINT SrcDataLen, LPCSTR pFunctionName, LPCSTR pTarget, DWORD Flags, void*& result)
 {
+    // R1A (SOP's r1a shaders): per-pixel fog, height fog noise and stochastic detail sampling need shader model 3,
+    // which also turns off the fixed-function fog - the shaders fog themselves (r1a_apply_fog in common.h).
+    // Vertex and pixel shaders must both be 3_0. The target is a part of the shader cache CRC, old caches are rebuilt.
+    pTarget = (pTarget[0] == 'p') ? "ps_3_0" : "vs_3_0";
+
     D3DXMACRO defines[128];
     int def_it = 0;
 
@@ -1035,8 +1060,8 @@ HRESULT CRender::shader_compile(LPCSTR name, DWORD const* pSrcData, UINT SrcData
         LPD3DXCONSTANTTABLE pConstants = NULL;
         LPD3DXINCLUDE pInclude = (LPD3DXINCLUDE)&Includer;
 
-        _result = D3DXCompileShader((LPCSTR)pSrcData, SrcDataLen, defines, pInclude, pFunctionName, pTarget, Flags | D3DXSHADER_USE_LEGACY_D3DX9_31_DLL, &pShaderBuf, &pErrorBuf,
-                                    &pConstants);
+        // Shader model 3 with the current compiler (see sm3_target above)
+        _result = D3DXCompileShader((LPCSTR)pSrcData, SrcDataLen, defines, pInclude, pFunctionName, pTarget, Flags, &pShaderBuf, &pErrorBuf, &pConstants);
         if (SUCCEEDED(_result))
         {
             if (ps_r2_ls_flags_ext.test(R2FLAGEXT_SHADER_CACHE) && (!is_cache_file || src_crc))

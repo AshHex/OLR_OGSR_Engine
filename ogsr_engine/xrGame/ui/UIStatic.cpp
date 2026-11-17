@@ -8,6 +8,7 @@
 #include "uilines.h"
 #include "../string_table.h"
 #include "../ui_base.h"
+#include "UIModel.h"
 
 const char* const clDefault = "default";
 #define CREATE_LINES \
@@ -58,7 +59,51 @@ CUIStatic::CUIStatic()
     m_shader = NULL;
 }
 
-CUIStatic::~CUIStatic() { xr_delete(m_pLines); }
+CUIStatic::~CUIStatic()
+{
+    xr_delete(m_pLines);
+    xr_delete(m_model);
+}
+
+CUIModel& CUIStatic::Model()
+{
+    if (!m_model)
+        m_model = xr_new<CUIModel>();
+    return *m_model;
+}
+
+void CUIStatic::SetModelSection(LPCSTR section) { Model().SetFromSection(section); }
+
+void CUIStatic::RemoveModel()
+{
+    if (!m_model)
+        return;
+    xr_delete(m_model);
+    m_model_texture = nullptr;
+    TextureOff();
+}
+
+// the model's tile of the atlas becomes the texture: rendered now when needed, nothing drawn until it has an image
+void CUIStatic::DrawModel()
+{
+    shared_str texture;
+    Frect rect;
+    if (!m_model->Prepare(*this, texture, rect))
+    {
+        TextureOff();
+        return;
+    }
+
+    if (texture != m_model_texture)
+    {
+        CUITextureMaster::InitTexture(texture.c_str(), "hud\\ui3d", &m_UIStaticItem);
+        m_bAvailableTexture = true;
+        m_model_texture = texture;
+    }
+    SetStretchTexture(true);
+    SetOriginalRect(rect);
+    TextureOn();
+}
 
 void CUIStatic::SetXformLightAnim(LPCSTR lanim, bool bCyclic)
 {
@@ -120,12 +165,20 @@ void CUIStatic::InitTextureEx(LPCSTR tex_name, LPCSTR sh_name)
     m_texture = tex_name;
     m_shader = sh_name;
 
+    // "$ui3d$<section>": a 3D model of the section instead of a texture
+    if (tex_name && !strncmp(tex_name, "$ui3d$", 6))
+    {
+        SetModelSection(tex_name + 6);
+        return;
+    }
+
     LPCSTR res_shname = UIRender->UpdateShaderName(tex_name, sh_name);
     CUITextureMaster::InitTexture(tex_name, res_shname, &m_UIStaticItem);
 
     Fvector2 p = GetWndPos();
     m_UIStaticItem.SetPos(p.x, p.y);
     m_bAvailableTexture = true;
+    m_model_texture = nullptr; // as in SetShader: a model sets its page again
 }
 
 void CUIStatic::Draw()
@@ -148,7 +201,22 @@ void CUIStatic::Draw()
         UI()->PushScissor(clip_rect);
     }
 
+    if (m_model)
+        DrawModel();
+
+    // the model's outline for this static's draw only (the UI draws it at once, hud_ui3d reads it)
+    const bool outline = m_model && m_model->HasOutline() && m_bTextureEnable;
+    if (outline)
+    {
+        Fcolor c;
+        c.set(m_model->GetOutlineColor());
+        ::Render->ui_model_outline(c, m_model->GetOutlineWidth(), m_model->GetOutlineSoftness());
+    }
+
     DrawTexture();
+
+    if (outline)
+        ::Render->ui_model_outline(Fcolor{}, 0.f, 0.f);
     inherited::Draw();
     DrawText();
 
@@ -447,6 +515,9 @@ void CUIStatic::SetShader(const ui_shader& sh)
 {
     m_UIStaticItem.SetShader(sh);
     m_bAvailableTexture = true;
+    // the model's page is no longer the texture: set it again on the next DrawModel (a cell set up again on a list rebuild put its 2D icon's
+    // shader back and drew the tile's rect out of the 2D atlas)
+    m_model_texture = nullptr;
 }
 
 LPCSTR CUIStatic::GetText()

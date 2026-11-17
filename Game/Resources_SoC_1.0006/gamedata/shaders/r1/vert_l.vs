@@ -25,3 +25,7 @@ vf main (v_vert v)
 	o.c0 		= float4 		(L_final.x,L_final.y,L_final.z,L_sun);
 	return o;
 }
+
+
+
+

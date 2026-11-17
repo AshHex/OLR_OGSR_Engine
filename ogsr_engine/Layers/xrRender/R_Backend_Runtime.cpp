@@ -213,6 +213,20 @@ void CBackend::set_ClipPlanes(u32 _enable, Fmatrix* _xform /*=NULL */, u32 fmask
     set_ClipPlanes(_enable, F.planes, F.p_count);
 }
 
+void CBackend::unbind_ps_textures()
+{
+    for (u32 i = 0; i < mtMaxPixelShaderTextures; ++i)
+    {
+        textures_ps[i] = nullptr;
+#if defined(USE_DX10) || defined(USE_DX11)
+        SRVSManager.SetPSResource(i, nullptr);
+#else
+        CHK_DX(HW.pDevice->SetTexture(i, nullptr));
+#endif
+    }
+    T = nullptr;
+}
+
 void CBackend::set_Textures(STextureList* _T)
 {
     if (T == _T)

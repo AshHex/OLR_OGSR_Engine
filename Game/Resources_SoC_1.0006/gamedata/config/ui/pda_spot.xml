@@ -22,5 +22,5 @@
 		<texture_t>ui_button_ordinary_t</texture_t>
 		<texture_h>ui_button_ordinary_h</texture_h>
 		<text>ui_inv_cancel</text>
-    </btn_cancel>
+	</btn_cancel>
 </w>

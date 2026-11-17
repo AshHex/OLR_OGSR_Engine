@@ -414,6 +414,7 @@ void CRender::destroy()
     */
 
     HWOCC.occq_destroy();
+    UIModels.destroy();
     xr_delete(Models);
     xr_delete(Target);
     PSLibrary.OnDestroy();
@@ -460,6 +461,9 @@ void CRender::reset_begin()
     for (u32 i=0; i<HW.Caps.iGPUNum; ++i)
         _RELEASE				(q_sync_point[i]);
     */
+
+    // the 3D model tiles are rendered again (the screen size and the UI scale may change)
+    UIModels.reset_begin();
 }
 
 void CRender::reset_end()

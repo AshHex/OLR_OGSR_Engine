@@ -84,6 +84,11 @@ protected:
 
 public:
     BOOL has_visible_bones();
+
+    // the vertices' box in the pose the bones have now (skinned on the CPU from the vertex copy, model space): vertices of a hidden bone or of
+    // one flagged in skip_bones left out. 3D models in UI frame still icons by it (an idle motion moves the mesh off its bind-pose box)
+    void AddPosedBox(Fbox& box, const xr_vector<bool>* skip_bones);
+
     CSkeletonX()
     {
         Parent = 0;

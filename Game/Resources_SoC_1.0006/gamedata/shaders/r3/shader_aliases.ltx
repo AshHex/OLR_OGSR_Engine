@@ -1,4 +1,10 @@
 ; Shaders that have no r3 (DX10/DX11) version. A missing shader is drawn with the one on the right instead of
 ; stub_default. The target must exist as r3\*.s. See r_shader_audit.
 [aliases]
-models\miror                    = models\selflight_det_3
+models\miror = models\selflight_det_3
+
+; One texture of an existing shader drawn with another shader (key: <shader>/<first texture>, the lightmaps are not part of it)
+; lvl2_garbage pools are def_shaders\def_trans with water textures: water that reflects the sky
+[texture_aliases]
+def_shaders\def_trans/water\water_pool1 = effects\water_lmap
+def_shaders\def_trans/water\water_pool2 = effects\water_lmap

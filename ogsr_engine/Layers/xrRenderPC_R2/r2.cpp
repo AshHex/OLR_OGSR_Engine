@@ -303,6 +303,7 @@ void CRender::create()
 void CRender::destroy()
 {
     m_bMakeAsyncSS = false;
+    UIModels.destroy();
     ::PortalTraverser.destroy();
     /*
     for (u32 i=0; i<HW.Caps.iGPUNum; ++i)
@@ -319,6 +320,9 @@ void CRender::destroy()
 extern u32 reset_frame;
 void CRender::reset_begin()
 {
+    // the 3D model tiles: the depth surface made for them is released before the device reset, the images are rendered again
+    UIModels.reset_begin();
+
     // Update incremental shadowmap-visibility solver
     // BUG-ID: 10646
     {

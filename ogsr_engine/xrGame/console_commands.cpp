@@ -1308,6 +1308,7 @@ struct CCC_DbgBullets : public CCC_Integer
 #include "Inventory.h"
 #include "HUDManager.h"
 #include "HUDTarget.h"
+#include "ui/UIModel.h"
 class CCC_TuneAttachableItem : public IConsole_Command
 {
 public:
@@ -1808,4 +1809,18 @@ void CCC_RegisterCommands()
     CMD4(CCC_Float, "g_cam_height_speed", &cam_HeightInterpolationSpeed, 4.0f, 16.0f);
     CMD4(CCC_Float, "g_cam_lookout_speed", &cam_LookoutSpeed, 1.0f, 4.0f);
     CMD4(CCC_Integer, "quick_save_counter", &quick_save_counter, 0, 25);
+
+    // 3D models in UI (ui/UIModel.h) and 3D item icons in inventory cells (CUICellItem::Update3DIcon; also [ui3d_cell_icons] enabled), on every
+    // renderer
+    {
+        static constexpr xr_token ui3d_projection_token[] = {{"model", 0}, {"ortho", 1}, {"perspective", 2}, {nullptr, 0}};
+        extern BOOL g_ui3d_cell_icons;
+        extern float g_ui3d_cell_icons_scale;
+        CMD4(CCC_Integer, "g_3d_static_debug", &m_b3dStaticDebug, 0, 1);
+        CMD4(CCC_Integer, "ui3d_static_per_frame", &g_ui3d_static_per_frame, 1, 256);
+        CMD3(CCC_Token, "ui3d_projection", &g_ui3d_projection, ui3d_projection_token);
+        CMD4(CCC_Integer, "ui3d_tile_cache", &g_ui3d_tile_cache, 0, 1);
+        CMD4(CCC_Integer, "ui3d_cell_icons", &g_ui3d_cell_icons, 0, 1);
+        CMD4(CCC_Float, "ui3d_cell_icons_scale", &g_ui3d_cell_icons_scale, 0.25f, 4.f);
+    }
 }

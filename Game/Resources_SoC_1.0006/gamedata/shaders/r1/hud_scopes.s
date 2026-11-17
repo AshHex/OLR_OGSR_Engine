@@ -1,6 +1,6 @@
 function normal                (shader, t_base, t_second, t_detail)
   shader:begin                	("hud_scopes","hud_scopes")
-        : sorting       		(1, false)
+        : sorting       		(3, false)
         : blend                	(true,blend.srcalpha,blend.invsrcalpha)
 		: aref					(false, 0)	
         : zb                	(false,false)

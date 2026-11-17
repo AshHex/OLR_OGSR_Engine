@@ -136,6 +136,15 @@ CSkeletonX* CKinematics::LL_GetChild(u32 idx)
     return B;
 }
 
+bool CKinematics::GetPosedMeshBox(Fbox& box, const xr_vector<bool>* skip_bones) const
+{
+    box.invalidate();
+    for (u32 i = 0; i < children.size(); ++i)
+        if (CSkeletonX* x = const_cast<CKinematics*>(this)->LL_GetChild(i))
+            x->AddPosedBox(box, skip_bones);
+    return box.is_valid();
+}
+
 void CKinematics::Load(const char* N, IReader* data, u32 dwFlags)
 {
     // Msg				("skeleton: %s",N);

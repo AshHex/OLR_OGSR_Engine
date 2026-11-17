@@ -6,6 +6,7 @@ struct vf
 	float4 C	: COLOR0;
 	float2 tc	: TEXCOORD0;
 	float fog : FOG;
+	float3 fog_pos : TEXCOORD6;
 };
 
 uniform float4 		consts; // {1/quant,1/quant,diffusescale,ambient}
@@ -26,9 +27,9 @@ vf main (v_detail v)
 
 	// Transform to world coords
 	float4 	pos;
- 	pos.x 		= dot	(m0, v.pos);
- 	pos.y 		= dot	(m1, v.pos);
- 	pos.z 		= dot	(m2, v.pos);
+  	pos.x 		= dot	(m0, v.pos);
+  	pos.y 		= dot	(m1, v.pos);
+  	pos.z 		= dot	(m2, v.pos);
 	pos.w 		= 1;
 
 	float 	base 	= m1.w;
@@ -45,15 +46,21 @@ vf main (v_detail v)
 	o.hpos = mul(m_VP, pos); // mul(m_WVP,pos); // xform, input in world coords
 #endif	
 
-    // Calc fog
-    o.fog = calc_fogging(pos);
-
 	// Fake lighting
 	float 	dpc 	= max 	(0.f, dp);
 	o.C		= c0 * (consts.w+consts.z*dpc*frac);
 
 	// final xform, color, tc
 	o.tc.xy	= (v.misc * consts).xy;
+	o.fog		= calc_fogging	(pos);
+	o.fog_pos	= pos.xyz;
 
 	return o;
 }
+
+
+
+
+
+
+

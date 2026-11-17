@@ -198,6 +198,7 @@ void CParticleGroup::SItem::StartRelatedChild(CParticleEffect* emitter, LPCSTR e
     CParticleEffect* C = static_cast<CParticleEffect*>(RImplementation.model_CreatePE(eff_name));
 
     C->SetHudMode(emitter->GetHudMode());
+    C->SetWorldCollision(emitter->GetWorldCollision());
 
     Fmatrix M;
     M.identity();
@@ -230,6 +231,7 @@ void CParticleGroup::SItem::StartFreeChild(CParticleEffect* emitter, LPCSTR nm, 
     CParticleEffect* C = static_cast<CParticleEffect*>(RImplementation.model_CreatePE(nm));
 
     C->SetHudMode(emitter->GetHudMode());
+    C->SetWorldCollision(emitter->GetWorldCollision());
 
     if (!C->IsLooped())
     {
@@ -610,6 +612,38 @@ u32 CParticleGroup::ParticlesCount()
     for (SItemVecIt i_it = items.begin(); i_it != items.end(); i_it++)
         p_count += i_it->ParticlesCount();
     return p_count;
+}
+
+bool CParticleGroup::GetVisibleBox(Fbox& box, const float min_visibility)
+{
+    bool any = false;
+    xr_vector<dxRender_Visual*> visuals;
+    for (auto& item : items)
+    {
+        visuals.clear();
+        item.GetVisuals(visuals);
+        for (dxRender_Visual* v : visuals)
+        {
+            auto* e = dynamic_cast<CParticleEffect*>(v);
+            Fbox b;
+            if (!e || !e->GetVisibleBox(b, min_visibility))
+                continue;
+            if (any)
+                box.merge(b);
+            else
+                box.set(b);
+            any = true;
+        }
+    }
+    return any;
+}
+
+void CParticleGroup::SetWorldCollision(const bool on)
+{
+    // the effects; their child effects take it from them when started
+    for (const auto& item : items)
+        if (CParticleEffect* E = dynamic_cast<CParticleEffect*>(item._effect))
+            E->SetWorldCollision(on);
 }
 
 void CParticleGroup::SetHudMode(BOOL b)

@@ -138,6 +138,8 @@ public:
     virtual void SetHudMode(BOOL b);
     virtual BOOL GetHudMode();
 
+    void SetWorldCollision(bool on) override;
+
     virtual float GetTimeLimit()
     {
         VERIFY(m_Def);
@@ -151,6 +153,7 @@ public:
     }
 
     virtual u32 ParticlesCount();
+    bool GetVisibleBox(Fbox& box, float min_visibility) override;
 };
 
 } // namespace PS

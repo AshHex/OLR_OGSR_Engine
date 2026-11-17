@@ -264,6 +264,16 @@ CEnvDescriptor::CEnvDescriptor(shared_str const& identifier) : m_identifier(iden
     m_fWaterIntensity = 1;
     m_fTreeAmplitudeIntensity = 0.01;
 
+    emitter_color.set(0, 0, 0);
+    emitter_height = 0.f;
+    emitter_power = 0.f;
+    emitter_noise_amp = 0.f;
+    emitter_noise_scale = 0.04f;
+    emitter_noise_speed = 0.f;
+    mipfog_near_start = 1.f;
+    mipfog_directional = 0.f;
+    mipfog_amount = 0.f;
+
     lens_flare_id = "";
     tb_id = "";
 
@@ -336,6 +346,20 @@ void CEnvDescriptor::load(CEnvironment& environment, CInifile& config)
     constexpr float def_min_TAI = 0.01f, def_max_TAI = 0.07f;
     const float def_TAI = def_min_TAI + (rain_density * (def_max_TAI - def_min_TAI)); //Если не прописано, дефолт будет рассчитываться от силы дождя.
     m_fTreeAmplitudeIntensity = READ_IF_EXISTS(reinterpret_cast<CInifile*>(&config), r_float, m_identifier.c_str(), "tree_amplitude_intensity", def_TAI);
+
+    {
+        CInifile* ini = &config;
+        LPCSTR sect = m_identifier.c_str();
+        emitter_color = READ_IF_EXISTS(ini, r_fvector3, sect, "emitter_color", fog_color);
+        emitter_height = READ_IF_EXISTS(ini, r_float, sect, "emitter_height", 0.f);
+        emitter_power = READ_IF_EXISTS(ini, r_float, sect, "emitter_power", 0.f);
+        emitter_noise_amp = READ_IF_EXISTS(ini, r_float, sect, "emitter_noise_amp", 0.f);
+        emitter_noise_scale = READ_IF_EXISTS(ini, r_float, sect, "emitter_noise_scale", 0.04f);
+        emitter_noise_speed = READ_IF_EXISTS(ini, r_float, sect, "emitter_noise_speed", 0.f);
+        mipfog_near_start = READ_IF_EXISTS(ini, r_float, sect, "mipfog_near_start", 1.f);
+        mipfog_directional = READ_IF_EXISTS(ini, r_float, sect, "mipfog_directional", 0.f);
+        mipfog_amount = READ_IF_EXISTS(ini, r_float, sect, "mipfog_amount", 0.f);
+    }
 
     C_CHECK(clouds_color);
     C_CHECK(sky_color);
@@ -497,6 +521,16 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 
     m_fWaterIntensity = fi * A.m_fWaterIntensity + f * B.m_fWaterIntensity;
     m_fTreeAmplitudeIntensity = fi * A.m_fTreeAmplitudeIntensity + f * B.m_fTreeAmplitudeIntensity;
+
+    emitter_color.lerp(A.emitter_color, B.emitter_color, f);
+    emitter_height = fi * A.emitter_height + f * B.emitter_height;
+    emitter_power = fi * A.emitter_power + f * B.emitter_power;
+    emitter_noise_amp = fi * A.emitter_noise_amp + f * B.emitter_noise_amp;
+    emitter_noise_scale = fi * A.emitter_noise_scale + f * B.emitter_noise_scale;
+    emitter_noise_speed = fi * A.emitter_noise_speed + f * B.emitter_noise_speed;
+    mipfog_near_start = fi * A.mipfog_near_start + f * B.mipfog_near_start;
+    mipfog_directional = fi * A.mipfog_directional + f * B.mipfog_directional;
+    mipfog_amount = fi * A.mipfog_amount + f * B.mipfog_amount;
 
     // colors
     sky_color.lerp(A.sky_color, B.sky_color, f);

@@ -19,3 +19,7 @@ vf_spot main 	(v_vert v)
 
 	return 		o;
 }
+
+
+
+

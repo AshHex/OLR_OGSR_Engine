@@ -23,6 +23,15 @@ void dxUIRender::SetShader(IUIShader& shader)
     VERIFY(&pShader);
     VERIFY(pShader->hShader);
     RCache.set_Shader(pShader->hShader);
+
+    // a 3D model tile's outline for this draw, every draw of hud\ui3d: on DX9 the pixel shader constants are shared registers, a tile rendered
+    // between two UI draws (the first time the icons are shown) leaves its own values in them, and the binders run only on a table change
+    if (R_constant* c = RCache.get_c("ui3d_outline")._get())
+    {
+        RCache.set_c(c, g_ui3d_outline);
+        RCache.set_c("ui3d_outline_params", g_ui3d_outline_params);
+        g_ui3d_outline_dirty = false;
+    }
 }
 
 void dxUIRender::SetAlphaRef(int aref)

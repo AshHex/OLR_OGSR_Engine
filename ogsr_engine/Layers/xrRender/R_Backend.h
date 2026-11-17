@@ -194,6 +194,10 @@ private:
     void Invalidate();
 
 public:
+    // every pixel shader resource slot unbound (the cache and the device): a target written next as a render target is not left bound as a
+    // texture in the cache while the device has dropped it (3D models in UI: the tile's scratch targets, CUIModels::render)
+    void unbind_ps_textures();
+
     struct _stats
     {
         u32 polys;

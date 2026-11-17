@@ -10,10 +10,5 @@ function normal		(shader, t_base, t_second, t_detail)
 	shader:sampler	("s_base")      :texture	(t_base)
 end
 
--- карта теней
-function l_point	(shader, t_base, t_second, t_detail)
-	shader:begin	("shadow_direct_model","shadow_direct_base")
-			: fog		(false)
-			: zb		(true,true)
-	shader:sampler	("s_base")      :texture	(t_base)
-end
+-- l_point (карта теней) намеренно не задан: ноги от 1-го лица не должны отбрасывать
+-- тень (её уже даёт модель игрока), как и в r3/r4.

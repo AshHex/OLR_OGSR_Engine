@@ -802,7 +802,8 @@ CUICellContainer::CellTextureType CUICellContainer::get_select_mode(const int x,
     CUICell& ui_cell = GetCellAt(cpos);
 
     CellTextureType select_mode = CellTextureTypeNormal;
-    if (!ui_cell.Empty())
+    // a 3D icon shows its highlight as an outline: the grid under it stays normal unless [dragdrop] select_grid_for_3d_icons
+    if (!ui_cell.Empty() && (!ui_cell.m_item->GetModel() || cell_settings_db::get().SelectGridFor3DIcons))
     {
         if (Core.Features.test(xrCore::Feature::select_mode_1342))
         {

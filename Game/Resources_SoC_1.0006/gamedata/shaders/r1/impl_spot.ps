@@ -11,7 +11,7 @@ float4 main(impl_vf_spot I) : COLOR
 	float3 final_rgb = t_base.rgb * t_lmap.rgb * t_att.rgb * I.color.rgb;
 	final_rgb *= 2.0f;
 	// детейл
-	float3 t_dt	= tex2D(s_detail,I.tcd).rgb;//*I.c1.x+I.c1.y;
+	float3 t_dt	= tex2DStochastic(s_detail,I.tcd).rgb;//*I.c1.x+I.c1.y;
 	final_rgb	*= t_dt*2;	
 	
 	float base_alpha = clamp(t_base.a, 0.8f, 1.0f);
@@ -19,3 +19,4 @@ float4 main(impl_vf_spot I) : COLOR
 	
 	return float4(final_rgb, final_alpha);
 }
+

@@ -146,7 +146,8 @@ void CParticleEffect::OnFrame(u32 frame_dt)
             // our actions
             if (m_Def->m_Flags.is(CPEDef::dfFramed | CPEDef::dfAnimated))
                 m_Def->ExecuteAnimate(particles, p_cnt, fDT_STEP);
-            if (m_Def->m_Flags.is(CPEDef::dfCollision))
+            // no level (an effect in a UI model in the main menu) or turned off (3D models in UI): nothing to bounce off
+            if (m_Def->m_Flags.is(CPEDef::dfCollision) && g_pGameLevel && GetWorldCollision())
                 m_Def->ExecuteCollision(particles, p_cnt, fDT_STEP, this, m_CollisionCallback);
 
             //-move action
@@ -213,6 +214,34 @@ void CParticleEffect::SetBirthDeadCB(PAPI::OnBirthParticleCB bc, PAPI::OnDeadPar
 }
 
 u32 CParticleEffect::ParticlesCount() { return ParticleManager()->GetParticlesCount(m_HandleEffect); }
+
+bool CParticleEffect::GetVisibleBox(Fbox& box, const float min_visibility)
+{
+    PAPI::Particle* particles;
+    u32 p_cnt;
+    ParticleManager()->GetParticles(m_HandleEffect, particles, p_cnt);
+
+    bool any = false;
+    for (u32 i = 0; i < p_cnt; ++i)
+    {
+        const PAPI::Particle& m = particles[i];
+        // additive sprites show by their colour, blended ones by their alpha: both scale with colour x alpha
+        const float a = color_get_A(m.color) / 255.f;
+        const float c = std::max({color_get_R(m.color), color_get_G(m.color), color_get_B(m.color)}) / 255.f;
+        if (a * c < min_visibility)
+            continue;
+
+        const float r = std::max(m.size.x, m.size.y) * 0.5f;
+        Fbox p;
+        p.set(m.pos.x - r, m.pos.y - r, m.pos.z - r, m.pos.x + r, m.pos.y + r, m.pos.z + r);
+        if (any)
+            box.merge(p);
+        else
+            box.set(p);
+        any = true;
+    }
+    return any;
+}
 
 //------------------------------------------------------------------------------
 // Render

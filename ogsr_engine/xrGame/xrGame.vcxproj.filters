@@ -5463,6 +5463,12 @@
     <ClInclude Include="ui\UIStatic.h">
       <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
     </ClInclude>
+    <ClInclude Include="ui\UIModel.h">
+      <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
+    </ClInclude>
+    <ClInclude Include="ui\UI3dStatic.h">
+      <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
+    </ClInclude>
     <ClInclude Include="UIStaticItem.h">
       <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
     </ClInclude>
@@ -8558,6 +8564,12 @@
       <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
     </ClCompile>
     <ClCompile Include="ui\UIStatic.cpp">
+      <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\UIModel.cpp">
+      <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
+    </ClCompile>
+    <ClCompile Include="ui\UI3dStatic.cpp">
       <Filter>AI\AScript\ScriptClasses\UI\UIWindows\Static</Filter>
     </ClCompile>
     <ClCompile Include="ui\UIStatic_script.cpp">

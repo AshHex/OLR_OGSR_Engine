@@ -1,7 +1,7 @@
 #ifndef _WATERCONFIG_H
 #define _WATERCONFIG_H
 
-//настройки для: (1)
+//пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ: (1)
 //waterdistortion
 //waterdistortion2
 
@@ -13,6 +13,14 @@
 #define W_DISTORT_AMP_1		(+0.55f)	//(-0.30f)
 #define W_DISTORT_POWER		(1.0f)		//(1.0f)
 
+// water lighting tuning (r1a/water.ps)
+#define W_ENV_GAMMA_LIFT	(0.85f)
+#define W_ENV_LIGHT_BOOST	(1.0f)
+#define W_WATER_LIGHT_BOOST	(1.0f)
+#define W_PIXEL_LIGHT_BOOST	(1.0f)
+#define W_PIXEL_LIGHT_FLOOR	(0.0f)
+#define W_PIXEL_AMBIENT_ADD	(0.0f)
+
 #endif
 
 
@@ -20,7 +28,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 -- waters clear
 ////////////////////////////////////////////////////////////////////////////////
-настройки для:
+пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ:
 	waterdistortion
 	waterdistortion2
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +40,7 @@
 #define W_DISTORT_AMP_1		(-1.75f)	//(-0.30f)
 #define W_DISTORT_POWER		(1.0f)		//(1.0f)
 ////////////////////////////////////////////////////////////////////////////////
-настройки для:
+пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ:
 	waterdistortion
 	waterdistortion
 ////////////////////////////////////////////////////////////////////////////////

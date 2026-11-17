@@ -60,7 +60,7 @@
 	</string>
 	<string id="ui_st_invalid_saved_game">
 		<text>The version of the saved game does not match or the saved game is corrupted.</text>
-	</string>	
+	</string>
 	<string id="ui_mm_delete_existing_file_q">
 		<text>Do you really want to delete the file?</text>
 	</string>
@@ -203,10 +203,10 @@
 	</string>
 	<string id="hint_caption_text">
 		<text>Click the 'Advanced' button to change the settings added to OGSR</text>
-	</string>	
+	</string>
 	<string id="hint_caption_adv_text">
 		<text>Hover your mouse over the option and see its description here. This way you will be able to understand the meaning of unfamiliar settings, as well as new settings added to OGSR</text>
-	</string>	
+	</string>
 	<string id="ui_mm_simply">
 		<text>Basic</text>
 	</string>
@@ -215,7 +215,7 @@
 	</string>
 	<string id="ui_mm_r2_ao">
 		<text>Ambient Occlusion (Shading the environment)</text>
-	</string>		
+	</string>
 	<string id="ui_mm_r2_ao_intensity">
 		<text>AO Intensity</text>
 	</string>
@@ -238,10 +238,10 @@
 
 	<string id="ui_mm_r2_steep_parallax">
 		<text>Steep parallax</text>
-	</string>	
+	</string>
 	<string id="ui_mm_terrain_parallax">
 		<text>Parallax on terrain textures</text>
-	</string>	
+	</string>
 	<string id="ui_mm_mt_texload">
 		<text>Multi-threaded texture loading</text>
 	</string>
@@ -274,10 +274,10 @@
 	</string>
 	<string id="ui_mm_detail_distance">
 		<text>Grass draw distance</text>
-	</string>	
+	</string>
 	<string id="ui_mm_detail_scale">
 		<text>Grass height</text>
-	</string>	
+	</string>
 	<string id="ui_mm_soft_water">
 		<text>Soft water</text>
 	</string>
@@ -289,16 +289,16 @@
 	</string>
 	<string id="st_opt_smaa">
 		<text>SMAA</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_aa_mode">
 		<text>Antialiasing mode (R2)</text>
-	</string>	
+	</string>
 	<string id="fxaa">
 		<text>FXAA</text>
 	</string>
 	<string id="smaa">
 		<text>SMAA</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_sun">
 		<text>Sun Shadow</text>
 	</string>
@@ -310,10 +310,10 @@
 	</string>
 	<string id="ui_mm_r2_detail_bump">
 		<text>Detail bump</text>
-	</string>		
+	</string>
 	<string id="ui_mm_r2_sunshafts">
 		<text>Sun shafts</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_sunshafts_mode">
 		<text>Sun shafts mode</text>
 	</string>
@@ -349,13 +349,13 @@
 	</string>
 	<string id="ui_mm_r2_true_sun_shadows">
 		<text>r2 True sun shadows</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_soft_shadows">
 		<text>Soft shadow edges</text>
 	</string>
 	<string id="ui_mm_r2_lights_shadow_fade">
 		<text>Soft lamp shadows</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_tonemap">
 		<text>High Dynamic Range</text>
 	</string>
@@ -379,10 +379,10 @@
 	</string>
 	<string id="ui_mm_r2_rain_drops">
 		<text>Drops on glass</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_visor_refl">
 		<text>Reflections in the helmet</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_puddles">
 		<text>Puddles</text>
 	</string>
@@ -421,7 +421,7 @@
 	</string>
 	<string id="ui_mm_r__bloodmarks">
 		<text>Bloodmarks</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_details_opt">
 		<text>Details optimization</text>
 	</string>
@@ -430,7 +430,7 @@
 	</string>
 	<string id="ui_mm_ssample">
 		<text>Anti-aliasing on static lighting</text>
-	</string>	
+	</string>
 	<string id="ui_mm_msaa">
 		<text>MSAA</text>
 	</string>
@@ -443,15 +443,15 @@
 	<string id="ui_mm_r2_sun_near_border">
 		<text>Angle of shadow rendering</text>
 	</string>
-		<string id="ui_mm_r2_sun_lumscale">
+	<string id="ui_mm_r2_sun_lumscale">
 		<text>Sunlight luminosity</text>
 	</string>
 	<string id="ui_mm_r_aa_mode">
 		<text>Anti-aliasing</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_aa">
 		<text>Antialiasing (R2)</text>
-	</string>	
+	</string>
 	<string id="ui_mm_r2_gi">
 		<text>Global illumination</text>
 	</string>
@@ -618,10 +618,10 @@
 	</string>
 	<string id="ui_mm_3d_scopes">
 		<text>3D Scopes</text>
-	</string>	
+	</string>
 	<string id="ui_mm_aim_toggle">
 		<text>Aiming by pressing/holding</text>
-	</string>	
+	</string>
 	<string id="ui_mm_switch_slot">
 		<text>Switching the slot using the mouse wheel</text>
 	</string>
@@ -654,7 +654,6 @@
 	<string id="ui_mm_default">
 		<text>By default</text>
 	</string>
-
 
 	<string id="video_settings_name_1">
 		<text>Multisample anti-aliasing - r3_msaa</text>

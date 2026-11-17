@@ -3,12 +3,19 @@
 struct 	v2p
 {
   	float4	c0:	COLOR0;
-};
+	float	fog:	FOG;
+ 		float3 fog_pos : TEXCOORD6;
+ };
 
 
-//////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
 // Pixel
 float4 	main	( v2p I )	: COLOR
 {
-	return  I.c0;
+	float4 color = I.c0;
+	color.rgb = r1a_apply_fog(color.rgb, I.fog_pos);
+	return color;
 }
+
+
+

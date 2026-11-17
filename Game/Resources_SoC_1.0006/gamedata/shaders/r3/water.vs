@@ -8,9 +8,13 @@ struct v_vert
     float4 N : NORMAL; // (nx,ny,nz,hemi occlusion)
     float4 T : TANGENT;
     float4 B : BINORMAL;
+#ifndef WATER_LMAP
     float4 color : COLOR0; // (r,g,b,dir-occlusion)
+#endif
     int2 uv : TEXCOORD0; // (u0,v0)
 };
+// WATER_LMAP (water_lmap.vs, effects\water_lmap): lightmapped level geometry. It has no vertex colour and its lighting is in
+// the lightmap, so the water is lit by the open sky (hemi + sun + ambient)
 
 struct vf
 {
@@ -38,7 +42,9 @@ vf main(v_vert v)
     v.N = unpack_D3DCOLOR(v.N);
     v.T = unpack_D3DCOLOR(v.T);
     v.B = unpack_D3DCOLOR(v.B);
+#ifndef WATER_LMAP
     v.color = unpack_D3DCOLOR(v.color);
+#endif
 
     vf o;
 
@@ -73,9 +79,15 @@ vf main(v_vert v)
     o.M2 = xform[1];
     o.M3 = xform[2];
 
+#ifdef WATER_LMAP
+    float3 L_rgb = 0;
+    float3 L_hemi = v_hemi(N);
+    float3 L_sun = v_sun(N);
+#else
     float3 L_rgb = v.color.xyz; // precalculated RGB lighting
     float3 L_hemi = v_hemi(N) * v.N.w; // hemisphere
     float3 L_sun = v_sun(N) * v.color.w; // sun
+#endif
     float3 L_final = L_rgb + L_hemi + L_sun + L_ambient;
     // L_final        = v.N.w        + L_ambient;
 

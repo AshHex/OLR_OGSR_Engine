@@ -48,4 +48,18 @@ public:
 
     Fvector2 UIItemImageSize;
     CUIStatic* UIItemImage;
+
+    // the item's 3D model in place of the 2D icon (image_static: model = 1, model_rotation_speed = degrees per second around the vertical, model_scale);
+    // when the 3D icons are on (ui3d_cell_icons, [ui3d_cell_icons] enabled / enabled_for_weapons) and the renderer draws models
+    CUIStatic* UIItemModel{};
+
+private:
+    float m_model_spin{40.f};
+    float m_model_scale{1.25f}; // image_static: model_scale, the window of the model to the 2D icon's size
+    bool m_model_allowed{true};
+    u64 m_model_key{}; // what the model shows (the item, its addons and bones): made again when it changes
+    bool m_model_failed{}; // no model for that key: the 2D icon
+
+    bool UpdateItemModel();
+    u64 ItemModelKey() const;
 };

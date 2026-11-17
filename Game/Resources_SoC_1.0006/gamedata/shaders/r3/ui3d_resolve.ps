@@ -1,0 +1,86 @@
+#include "common.h"
+
+// 3D models in UI (xrRender\UIModels.cpp, R3 / R4): box filter of the supersampled tile into its rect of the atlas page, premultiplied alpha.
+// Alpha is the coverage of the opaque G-buffer only: the forward pass (particles, glass) blends its own alpha into the lit target, which for
+// additive particles on the empty background is the sprite's texture alpha and would darken the UI behind it. Without it the forward colour
+// over an empty background adds to the UI (premultiplied with alpha 0), over the model it is part of the opaque colour.
+// Loops have constant bounds (supersampling up to 4, the outline mask radius ui_model_outline_max = 20): quick to compile, for the driver too
+uniform float4 ui3d_resolve; // xy: tile origin in the page (pixels), z: supersampling factor, w: outline mask radius in tile pixels (0: none)
+uniform float4 ui3d_resolve_size; // xy: the tile's size in the scratch targets (supersampled pixels)
+
+Texture2D s_ui3d_lit;
+Texture2D s_ui3d_position;
+
+static const int max_ss = 4;
+static const int max_radius = 20; // ui_model_outline_max
+
+struct resolve_out
+{
+    float4 color : SV_Target0;
+    float mask : SV_Target1; // distance to the silhouette / radius (tile pixels), 0 inside, 1 at the radius or farther
+};
+
+// covered (for the outline mask): the opaque G-buffer has a position at this supersampled pixel, or the forward pass left visible colour there
+// on the empty background; only inside the tile (past it the scratch targets keep the colour of tiles rendered before)
+bool covered(int2 p)
+{
+    const bool inside = all(p >= 0) && p.x < (int)ui3d_resolve_size.x && p.y < (int)ui3d_resolve_size.y;
+    const int3 tc = int3(clamp(p, 0, int2(ui3d_resolve_size.xy) - 1), 0);
+    return inside && (s_ui3d_position.Load(tc).z > 0.f || dot(s_ui3d_lit.Load(tc).rgb, 1.f / 3.f) > 0.03f);
+}
+
+resolve_out main(p_screen I)
+{
+    const int ss = (int)ui3d_resolve.z;
+    const int2 base = int2(I.hpos.xy - ui3d_resolve.xy) * ss;
+
+    float3 rgb = 0;
+    float coverage = 0;
+    float mask_cover = 0;
+    [unroll] for (int y = 0; y < max_ss; ++y)
+    {
+        [unroll] for (int x = 0; x < max_ss; ++x)
+        {
+            if (x < ss && y < ss)
+            {
+                const int3 tc = int3(base + int2(x, y), 0);
+                rgb += s_ui3d_lit.Load(tc).rgb;
+                coverage += s_ui3d_position.Load(tc).z > 0.f ? 1.f : 0.f;
+                mask_cover += covered(tc.xy) ? 1.f : 0.f;
+            }
+        }
+    }
+    const float n = ss * ss;
+
+    resolve_out O;
+    O.color = float4(rgb / n, coverage / n);
+
+    // outline mask: inside (partly covered) the uncovered part; outside the distance to the nearest covered tile pixel (its centre sample),
+    // searched over a disc of the radius. Only for models with an outline (w > 0), once for a cached tile
+    O.mask = 1.f;
+    const float radius = ui3d_resolve.w;
+    [branch] if (radius > 0.f)
+    {
+        if (mask_cover >= n && coverage <= 0.f)
+            O.mask = 1.f; // inside a translucent part: no outline there
+        else if (mask_cover > 0.f)
+            O.mask = (1.f - mask_cover / n) / radius;
+        else
+        {
+            const int2 c = base + ss / 2;
+            float best = radius;
+            [loop] for (int dy = -max_radius; dy <= max_radius; ++dy)
+            {
+                [loop] for (int dx = -max_radius; dx <= max_radius; ++dx)
+                {
+                    const float d = length(float2(dx, dy));
+                    if (d < best && covered(c + int2(dx, dy) * ss))
+                        best = d;
+                }
+            }
+            // nothing within the radius: "far" (1), not just under it (a wide glow tinted the whole tile)
+            O.mask = best < radius ? saturate((best - 0.5f) / radius) : 1.f;
+        }
+    }
+    return O;
+}

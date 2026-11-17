@@ -45,6 +45,7 @@ public:
         flRT_DefferedStop = (1 << 1),
         flRT_XFORM = (1 << 2),
         flRT_HUDmode = (1 << 3),
+        flRT_NoWorldCollision = (1 << 4), // SetWorldCollision(false): 3D models in UI
     };
     Flags8 m_RT_Flags;
 
@@ -82,6 +83,9 @@ public:
     virtual void SetHudMode(BOOL b) { m_RT_Flags.set(flRT_HUDmode, b); }
     virtual BOOL GetHudMode() { return m_RT_Flags.is(flRT_HUDmode); }
 
+    void SetWorldCollision(bool on) override { m_RT_Flags.set(flRT_NoWorldCollision, !on); }
+    bool GetWorldCollision() const { return !m_RT_Flags.is(flRT_NoWorldCollision); }
+
     virtual float GetTimeLimit()
     {
         VERIFY(m_Def);
@@ -99,6 +103,7 @@ public:
     void SetBirthDeadCB(PAPI::OnBirthParticleCB bc, PAPI::OnDeadParticleCB dc, void* owner, u32 p);
 
     virtual u32 ParticlesCount();
+    bool GetVisibleBox(Fbox& box, float min_visibility) override;
 };
 void OnEffectParticleBirth(void* owner, u32 param, PAPI::Particle& m, u32 idx);
 void OnEffectParticleDead(void* owner, u32 param, PAPI::Particle& m, u32 idx);

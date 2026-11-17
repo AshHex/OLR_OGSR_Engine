@@ -15,6 +15,7 @@ public:
     virtual bool EqualTo(CUICellItem* itm);
     virtual CUIDragItem* CreateDragItem();
     CInventoryItem* object() { return (CInventoryItem*)m_pData; }
+    bool Allows3DIcon() const override { return ui3d_cell_icons().enabled; }
 
     // Real Wolf: Для коллбеков. 25.07.2014.
     virtual void OnFocusReceive();
@@ -36,6 +37,7 @@ public:
     virtual void Update();
     virtual bool EqualTo(CUICellItem* itm);
     CWeaponAmmo* object() { return (CWeaponAmmo*)m_pData; }
+    bool Allows3DIcon() const override { return ui3d_cell_icons().enabled && ui3d_cell_icons().ammo; }
 };
 
 class CUIWeaponCellItem : public CUIInventoryCellItem
@@ -68,6 +70,11 @@ public:
     virtual ~CUIWeaponCellItem();
     virtual void Update();
     CWeapon* object() { return (CWeapon*)m_pData; }
+
+    // the world model with the attached addons ([ui3d_cell_icons] weapons); the addon icons hidden meanwhile
+    bool Allows3DIcon() const override { return ui3d_cell_icons().enabled && ui3d_cell_icons().weapons; }
+    void Setup3DModel(CUIModel& m) override;
+    u64 Icon3DState() override;
     virtual void OnAfterChild(CUIDragDropListEx* parent_list);
     CUIDragItem* CreateDragItem();
     virtual bool EqualTo(CUICellItem* itm);

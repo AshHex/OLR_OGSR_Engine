@@ -10,8 +10,8 @@ struct vf {
 	float  riml	: TEXCOORD2;
 };
 
-#define EDGE_INTENSITY 0.9
-#define EDGE_POWER 1.5
+#define EDGE_INTENSITY 1.2
+#define EDGE_POWER 2.1
 
 vf	_main (v_model v) {
 	vf 		o;
@@ -37,7 +37,7 @@ vf	_main (v_model v) {
 	o.riml		= edge_factor;
 
 #ifdef SKIN_COLOR
-	o.c0.rgb	*= v.rgb_tint	;
+	o.c0.rgb	*= v.rgb_tint;
 #endif
 	return o;
 }

@@ -416,6 +416,7 @@ void CRender::create()
 void CRender::destroy()
 {
     m_bMakeAsyncSS = false;
+    UIModels.destroy();
 #ifdef DX10_FLUID_ENABLE
     FluidManager.Destroy();
 #endif
@@ -436,6 +437,9 @@ void CRender::destroy()
 extern u32 reset_frame;
 void CRender::reset_begin()
 {
+    // the 3D model tiles are rendered again (the screen size and the UI scale may change)
+    UIModels.reset_begin();
+
     // Update incremental shadowmap-visibility solver
     // BUG-ID: 10646
     {

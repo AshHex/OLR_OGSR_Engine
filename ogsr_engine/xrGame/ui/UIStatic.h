@@ -8,6 +8,7 @@ class CUIFrameWindow;
 class CLAItem;
 class CUIXml;
 class CUILines;
+class CUIModel;
 
 struct lanim_cont
 {
@@ -36,8 +37,21 @@ private:
     shared_str m_texture;
     shared_str m_shader;
 
+    CUIModel* m_model{};
+    shared_str m_model_texture; // the atlas page the texture is set to
+
+    void DrawModel();
+
 public:
     using CUISimpleWindow::SetWndRect;
+
+    // A 3D model drawn as this static's texture (UIModel.h): SetModelSection, or the texture name "$ui3d$<section>" (XML, InitTexture).
+    // Model() creates an empty one (SetVisual / SetFromSection on it); nullptr from GetModel when there is none. Every renderer draws
+    // models; with one that cannot (IRender_interface::ui_model_supported false) nothing is drawn for the model
+    CUIModel* GetModel() const { return m_model; }
+    CUIModel& Model();
+    void SetModelSection(LPCSTR section);
+    void RemoveModel();
 
     CUIStatic();
     virtual ~CUIStatic();

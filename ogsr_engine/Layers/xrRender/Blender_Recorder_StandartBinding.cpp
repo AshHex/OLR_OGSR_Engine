@@ -107,6 +107,14 @@ static class cl_fog_plane final : public R_constant_setup
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        // 3D models in UI: no fog (the plane comes from the scene camera and the weather)
+        if (RImplementation.val_bUI)
+        {
+            result.set(0.f, 0.f, 0.f, 1.f);
+            RCache.set_c(C, result);
+            return;
+        }
+
         // Plane
         Fvector4 plane;
         Fmatrix& M = Device.mFullTransform;
@@ -132,6 +140,14 @@ static class cl_fog_params final : public R_constant_setup
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        // 3D models in UI: no fog (factor 0 at any distance)
+        if (RImplementation.val_bUI)
+        {
+            result.set(0.f, 1e6f, 1e6f, 0.f);
+            RCache.set_c(C, result);
+            return;
+        }
+
         // Near/Far
         float n = g_pGamePersistent->Environment().CurrentEnv->fog_near;
         float f = g_pGamePersistent->Environment().CurrentEnv->fog_far;
@@ -196,11 +212,46 @@ static class cl_eye_N final : public R_constant_setup
 } binder_eye_N;
 
 // D-Light0
+// 3D models in UI on R1 (forward, model_def_lq: light = hemi + ambient + sun, colour x 2): the tile's light rig (r_ui3d_*) in place of the
+// weather's sun, hemi and ambient. The tile camera looks along +z with y up, so its view space directions are the world ones
+#if RENDER == R_R1
+static bool ui3d_r1_light(const char* what, Fvector4& result)
+{
+    if (!RImplementation.val_bUI)
+        return false;
+    const float e = ps_r_ui3d_exposure;
+    if (!xr_strcmp(what, "sun_color"))
+        result.set(ps_r_ui3d_key_color.x * 0.15f * e, ps_r_ui3d_key_color.y * 0.15f * e, ps_r_ui3d_key_color.z * 0.15f * e, 0.f);
+    else if (!xr_strcmp(what, "sun_dir"))
+    {
+        Fvector d = ps_r_ui3d_key_dir;
+        if (d.square_magnitude() < EPS_S)
+            d.set(0.45f, -0.55f, 0.7f);
+        d.normalize();
+        result.set(d.x, d.y, d.z, 0.f);
+    }
+    else if (!xr_strcmp(what, "hemi"))
+        result.set(ps_r_ui3d_fill_color.x * 0.35f * e, ps_r_ui3d_fill_color.y * 0.35f * e, ps_r_ui3d_fill_color.z * 0.35f * e, 1.f);
+    else
+        result.set(ps_r_ui3d_ambient.x * 0.4f * e, ps_r_ui3d_ambient.y * 0.4f * e, ps_r_ui3d_ambient.z * 0.4f * e, 1.f);
+    return true;
+}
+#define UI3D_R1_LIGHT(what)                  \
+    if (ui3d_r1_light(what, result))         \
+    {                                        \
+        RCache.set_c(C, result);             \
+        return;                              \
+    }
+#else
+#define UI3D_R1_LIGHT(what)
+#endif
+
 static class cl_sun0_color final : public R_constant_setup
 {
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        UI3D_R1_LIGHT("sun_color")
         CEnvDescriptor& desc = *g_pGamePersistent->Environment().CurrentEnv;
         result.set(desc.sun_color.x, desc.sun_color.y, desc.sun_color.z, 0);
 
@@ -213,6 +264,7 @@ static class cl_sun0_dir_w final : public R_constant_setup
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        UI3D_R1_LIGHT("sun_dir")
         CEnvDescriptor& desc = *g_pGamePersistent->Environment().CurrentEnv;
         result.set(desc.sun_dir.x, desc.sun_dir.y, desc.sun_dir.z, 0);
 
@@ -240,6 +292,7 @@ static class cl_amb_color final : public R_constant_setup
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        UI3D_R1_LIGHT("ambient")
         CEnvDescriptorMixer& desc = *g_pGamePersistent->Environment().CurrentEnv;
         result.set(desc.ambient.x, desc.ambient.y, desc.ambient.z, desc.weight);
 
@@ -252,6 +305,7 @@ static class cl_hemi_color final : public R_constant_setup
     Fvector4 result;
     void setup(R_constant* C) override
     {
+        UI3D_R1_LIGHT("hemi")
         CEnvDescriptor& desc = *g_pGamePersistent->Environment().CurrentEnv;
         result.set(desc.hemi_color.x, desc.hemi_color.y, desc.hemi_color.z, desc.hemi_color.w);
 

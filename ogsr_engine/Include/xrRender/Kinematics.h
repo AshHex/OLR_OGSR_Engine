@@ -71,6 +71,12 @@ public:
     virtual ICF Fmatrix& LL_GetTransform_R(u16 bone_id) = 0;
     virtual Fobb& LL_GetBox(u16 bone_id) = 0;
     virtual const Fbox& _BCL GetBox() const = 0;
+    // the union of the meshes' own boxes (from their geometry, the bind pose): GetBox is built from the bones' boxes, which do not always
+    // cover the mesh (a one bone item, a magazine). False without meshes
+    virtual bool GetMeshBox(Fbox& box) const { return false; }
+    // the meshes' box in the bones' pose now (vertices skinned on the CPU, model space; call after CalculateBones): hidden bones' vertices
+    // and those of bones flagged in skip_bones (indexed by bone id) left out. Once per still icon (3D models in UI), not per frame
+    virtual bool GetPosedMeshBox(Fbox& box, const xr_vector<bool>* skip_bones) const { return false; }
     virtual void LL_GetBindTransform(xr_vector<Fmatrix>& matrices) = 0;
     virtual int LL_GetBoneGroups(xr_vector<xr_vector<u16>>& groups) = 0;
 

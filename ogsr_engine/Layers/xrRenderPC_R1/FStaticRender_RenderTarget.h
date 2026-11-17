@@ -7,7 +7,25 @@ class CRenderTarget : public IRender_Target
 public:
     ref_rt RT_SecondVP; //--#SM+#-- +SecondVP+
     ref_rt RT_BeforeUi; // Кадр до рендера UI (для пда)
+    // R1A: the previous frame after the sky, 1/32 of the screen, for the sky tinted fog.
+    // It is shrunk by halves through RT_sky_chain (1/2 .. 1/16): one linear StretchRect straight to a small target
+    // reads only 2x2 of every block, the far fog then shimmers while moving and carries cloud detail onto the horizon.
+    static constexpr u32 sky_chain_count = 4;
+    ref_rt RT_sky_chain[sky_chain_count];
+    ref_rt RT_sky_lookup;
+
 private:
+    // R1A bloom: 1/4 of the render target
+    ref_rt RT_bloom[3];
+    ref_shader s_bloom_prefilter;
+    ref_shader s_bloom_blur_h;
+    ref_shader s_bloom_blur_v;
+    ref_shader s_bloom_combine;
+    ref_geom g_bloom;
+    bool NeedBloom();
+    void phase_bloom();
+    void draw_bloom_quad(u32 w, u32 h);
+
     BOOL bAvailable;
     u32 rtWidth;
     u32 rtHeight;

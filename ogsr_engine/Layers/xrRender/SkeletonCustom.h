@@ -226,6 +226,15 @@ public:
         return (*bones)[bone_id]->obb;
     }
     const Fbox& _BCL GetBox() const { return vis.box; }
+    bool GetMeshBox(Fbox& box) const override
+    {
+        box.invalidate();
+        for (dxRender_Visual* child : children)
+            if (child && child->vis.box.is_valid())
+                box.merge(child->vis.box);
+        return box.is_valid();
+    }
+    bool GetPosedMeshBox(Fbox& box, const xr_vector<bool>* skip_bones) const override;
     void LL_GetBindTransform(xr_vector<Fmatrix>& matrices);
     int LL_GetBoneGroups(xr_vector<xr_vector<u16>>& groups);
 

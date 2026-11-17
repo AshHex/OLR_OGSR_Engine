@@ -546,6 +546,20 @@ void R_dsgraph_structure::r_dsgraph_render_hud()
     RCache.set_xform_project(Device.mProject);
 }
 
+// 3D models in UI (CUIModels::render): the tile's G-buffer (0) and forward (1) passes front to back, then its strict sorted elements back to
+// front. The tile camera is set in Device and RCache by the caller
+void R_dsgraph_structure::r_dsgraph_render_ui(const u32 _priority)
+{
+    mapUI[_priority].traverseLR(sorted_L1);
+    mapUI[_priority].clear();
+}
+
+void R_dsgraph_structure::r_dsgraph_render_ui_sorted()
+{
+    mapUISorted.traverseRL(sorted_L1);
+    mapUISorted.clear();
+}
+
 void R_dsgraph_structure::r_dsgraph_render_hud_ui()
 {
     VERIFY(g_hud && g_hud->RenderActiveItemUIQuery());

@@ -104,6 +104,21 @@ float ps_r__Tree_w_rot = 10.0f;
 float ps_r__Tree_w_speed = 1.00f;
 float ps_r__Tree_w_amp = 0.005f;
 Fvector ps_r__Tree_Wave = {.1f, .01f, .11f};
+
+// 3D models in UI (xrRenderPC_R4/r4_ui_models.cpp): supersampling and the light rig. Directions are in the tile camera's view space (x right,
+// y up, z into the screen) and point where the light travels; colours are linear, the result goes through exposure and a filmic curve
+int ps_r_ui3d_ssaa = 2;
+int ps_r_ui3d_ssaa_small = 4; // tiles up to 256 px
+Fvector ps_r_ui3d_key_dir{0.45f, -0.55f, 0.70f};
+Fvector ps_r_ui3d_key_color{2.6f, 2.5f, 2.4f};
+Fvector ps_r_ui3d_fill_dir{-0.75f, 0.10f, 0.65f};
+Fvector ps_r_ui3d_fill_color{0.55f, 0.6f, 0.7f};
+Fvector ps_r_ui3d_ambient{0.45f, 0.45f, 0.48f};
+float ps_r_ui3d_exposure = 1.f;
+
+// the outline of the 3D model tiles the UI draws now (hud_ui3d: ui3d_outline, ui3d_outline_params; IRender_interface::ui_model_outline)
+Fvector4 g_ui3d_outline{}, g_ui3d_outline_params{};
+bool g_ui3d_outline_dirty{};
 float ps_r__Tree_SBC = 1.5f; // scale bias correct
 
 float ps_r__WallmarkTTL = 50.f;
@@ -129,6 +144,18 @@ float ps_r1_lmodel_lerp = 0.1f;
 float ps_r1_dlights_clip = 40.f;
 float ps_r1_pps_u = 0.f;
 float ps_r1_pps_v = 0.f;
+
+// R1A (SOP static render look): per-pixel fog, height fog over level.emitter, sky tinted fog, bloom
+int ps_r1a_hfog_enable = 1;
+float ps_r1a_hfog_near_start = 1.5f;
+float ps_r1a_hfog_near_end = 14.f;
+float ps_r1a_hfog_near_curve = 1.6f;
+float ps_r1a_hfog_edge = 2.f;
+int ps_r1a_mipfog_enable = 1;
+int ps_r1a_bloom_enable = 1;
+float ps_r1a_bloom_threshold = 0.65f;
+float ps_r1a_bloom_soft = 0.7f;
+float ps_r1a_bloom_intensity = 1.f;
 
 // R1-specific
 int ps_r1_GlowsPerFrame = 16; // r1-only
@@ -735,6 +762,16 @@ void xrRender_initconsole()
     CMD4(CCC_Integer, "texture_lod", &psTextureLOD, 0, 4);
 
     CMD4(CCC_Float, "r__geometry_lod", &ps_r__LOD, 1.f, 3.f); // AVO: extended from 1.2f to 3.f
+
+    // 3D models in UI (R4, r4_ui_models.cpp): a change renders the cached tiles again
+    CMD4(CCC_Integer, "r_ui3d_ssaa", &ps_r_ui3d_ssaa, 1, 4);
+    CMD4(CCC_Integer, "r_ui3d_ssaa_small", &ps_r_ui3d_ssaa_small, 1, 4);
+    CMD4(CCC_Vector3, "r_ui3d_key_dir", &ps_r_ui3d_key_dir, (Fvector{-1.f, -1.f, -1.f}), (Fvector{1.f, 1.f, 1.f}));
+    CMD4(CCC_Vector3, "r_ui3d_key_color", &ps_r_ui3d_key_color, (Fvector{0.f, 0.f, 0.f}), (Fvector{10.f, 10.f, 10.f}));
+    CMD4(CCC_Vector3, "r_ui3d_fill_dir", &ps_r_ui3d_fill_dir, (Fvector{-1.f, -1.f, -1.f}), (Fvector{1.f, 1.f, 1.f}));
+    CMD4(CCC_Vector3, "r_ui3d_fill_color", &ps_r_ui3d_fill_color, (Fvector{0.f, 0.f, 0.f}), (Fvector{10.f, 10.f, 10.f}));
+    CMD4(CCC_Vector3, "r_ui3d_ambient", &ps_r_ui3d_ambient, (Fvector{0.f, 0.f, 0.f}), (Fvector{4.f, 4.f, 4.f}));
+    CMD4(CCC_Float, "r_ui3d_exposure", &ps_r_ui3d_exposure, 0.1f, 8.f);
     //.	CMD4(CCC_Float,		"r__geometry_lod_pow",	&ps_r__LOD_Power,			0,		2		);
 
     CMD4(CCC_Float, "r__detail_density", &ps_current_detail_density, 0.06f /*0.2f*/, 1.0f);
@@ -775,6 +812,17 @@ void xrRender_initconsole()
     CMD3(CCC_Mask, "r1_detail_textures", &ps_r2_ls_flags, R1FLAG_DETAIL_TEXTURES);
 
     CMD4(CCC_Float, "r1_fog_luminance", &ps_r1_fog_luminance, 0.2f, 5.f);
+
+    CMD4(CCC_Integer, "r1a_hfog_enable", &ps_r1a_hfog_enable, 0, 1);
+    CMD4(CCC_Float, "r1a_hfog_near_start", &ps_r1a_hfog_near_start, 0.f, 50.f);
+    CMD4(CCC_Float, "r1a_hfog_near_end", &ps_r1a_hfog_near_end, 0.1f, 200.f);
+    CMD4(CCC_Float, "r1a_hfog_near_curve", &ps_r1a_hfog_near_curve, 0.2f, 8.f);
+    CMD4(CCC_Float, "r1a_hfog_edge", &ps_r1a_hfog_edge, 0.05f, 30.f);
+    CMD4(CCC_Integer, "r1a_mipfog_enable", &ps_r1a_mipfog_enable, 0, 1);
+    CMD4(CCC_Integer, "r1a_bloom_enable", &ps_r1a_bloom_enable, 0, 1);
+    CMD4(CCC_Float, "r1a_bloom_threshold", &ps_r1a_bloom_threshold, 0.f, 2.f);
+    CMD4(CCC_Float, "r1a_bloom_soft", &ps_r1a_bloom_soft, 0.f, 1.f);
+    CMD4(CCC_Float, "r1a_bloom_intensity", &ps_r1a_bloom_intensity, 0.f, 4.f);
 
     // Software Skinning
     // 0 - disabled (renderer can override)

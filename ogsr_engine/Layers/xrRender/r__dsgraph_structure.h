@@ -4,6 +4,7 @@
 #include "../../xrcdb/ispatial.h"
 #include "r__dsgraph_types.h"
 #include "r__sector.h"
+#include "UIModels.h"
 
 //////////////////////////////////////////////////////////////////////////
 // feedback	for receiving visuals										//
@@ -24,6 +25,7 @@ public:
     Fmatrix* val_pTransform;
     BOOL val_bHUD;
     BOOL val_bInvisible;
+    BOOL val_bUI; // 3D models in UI (CUIModels::render, R4): visuals go to mapUI / mapUISorted, no LOD, no distortion
     BOOL val_bRecordMP; // record nearest for multi-pass
     R_feedback* val_feedback; // feedback for geometry being rendered
     u32 val_feedback_breakp; // breakpoint
@@ -44,6 +46,9 @@ public:
     R_dsgraph::mapLOD_T mapLOD;
     R_dsgraph::mapSorted_T mapDistort;
     R_dsgraph::mapHUD_T mapHUDSorted;
+    // 3D models in UI (CUIModels::render): the tile's visuals by priority (0: G-buffer, 1: forward) and the strict sorted ones
+    R_dsgraph::mapHUD_T mapUI[2];
+    R_dsgraph::mapHUD_T mapUISorted;
 #if RENDER != R_R1
     R_dsgraph::mapSorted_T mapWmark; // sorted
     R_dsgraph::mapSorted_T mapEmissive;
@@ -117,6 +122,7 @@ public:
         val_pTransform = NULL;
         val_bHUD = FALSE;
         val_bInvisible = FALSE;
+        val_bUI = FALSE;
         val_bRecordMP = FALSE;
         val_feedback = 0;
         val_feedback_breakp = 0;
@@ -166,6 +172,9 @@ public:
         mapLOD.destroy();
         mapDistort.destroy();
         mapHUDSorted.destroy();
+        mapUI[0].destroy();
+        mapUI[1].destroy();
+        mapUISorted.destroy();
 #if RENDER != R_R1
         mapWmark.destroy();
         mapEmissive.destroy();
@@ -186,6 +195,23 @@ public:
     void r_dsgraph_render_graph(u32 _priority, bool _clear = true);
     void r_dsgraph_render_hud();
     void r_dsgraph_render_hud_ui();
+    // 3D models in UI (CUIModels::render): the tile's G-buffer (0) and forward (1) passes, then its strict sorted elements
+    void r_dsgraph_render_ui(u32 _priority);
+    void r_dsgraph_render_ui_sorted();
+
+    // 3D models in UI (UIModels.h): every renderer
+    CUIModels UIModels;
+    bool ui_model_supported() override { return CUIModels::supported(); }
+    u32 ui_model_tile_alloc(u32 w, u32 h) override { return CUIModels::supported() ? UIModels.tile_alloc(w, h) : 0; }
+    u32 ui_model_tile_shared(u64 key, u32 w, u32 h) override { return CUIModels::supported() ? UIModels.tile_shared(key, w, h) : 0; }
+    void ui_model_tile_free(u32 tile) override { UIModels.tile_free(tile); }
+    bool ui_model_tile_alive(u32 tile) override { return UIModels.tile_alive(tile); }
+    bool ui_model_tile_texture(u32 tile, shared_str& texture, Frect& rect) override { return UIModels.tile_texture(tile, texture, rect); }
+    void ui_model_render(u32 tile, const ui_model_view& view, IUIModelSource& source) override { UIModels.render(tile, view, source); }
+    void ui_model_get_stats(ui_model_stats& stats) override { UIModels.stats(stats); }
+    void ui_model_invalidate_all() override { UIModels.invalidate_all(); }
+    u32 ui_model_evict_cached() override { return UIModels.evict_all_cached(); }
+    void ui_model_outline(const Fcolor& color, float width, float softness) override { CUIModels::set_outline(color, width, softness); }
     void r_dsgraph_render_lods(bool _setup_zb, bool _clear);
     void r_dsgraph_render_sorted();
     void r_dsgraph_render_emissive();

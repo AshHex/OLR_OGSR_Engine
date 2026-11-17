@@ -1,0 +1,79 @@
+// 3D models in UI (xrRender\UIModels.cpp, R1): the tile was drawn twice, over black (s_ui3d_lit) and over white (s_ui3d_white). A pixel's
+// coverage is 1 - (white - black) (the opaque model is the same in both, the background shows by the difference), its premultiplied colour
+// the one over black. Box filter of the supersampled tile into its rect of the atlas page, and the outline mask (distance to the silhouette).
+// Loops have constant bounds (supersampling up to 4, the mask radius ui_model_outline_max = 20): quick to compile
+uniform float4 ui3d_resolve; // xy: tile origin in the page (pixels), z: supersampling factor, w: outline mask radius in tile pixels (0: none)
+uniform float4 ui3d_resolve_size; // xy: the tile's size in the scratch targets (supersampled pixels), zw: texel size of the scratch targets
+
+sampler2D s_ui3d_lit;
+sampler2D s_ui3d_white;
+
+float4 ld(sampler2D s, float2 px) { return tex2Dlod(s, float4((px + 0.5f) * ui3d_resolve_size.zw, 0.f, 0.f)); }
+
+float alpha_at(float2 p) { return saturate(1.f - dot(ld(s_ui3d_white, p).rgb - ld(s_ui3d_lit, p).rgb, 1.f / 3.f)); }
+
+// covered (for the outline mask): mostly opaque there; only inside the tile
+bool covered(float2 p)
+{
+	bool inside = p.x >= 0.f && p.y >= 0.f && p.x < ui3d_resolve_size.x && p.y < ui3d_resolve_size.y;
+	return inside && alpha_at(p) > 0.5f;
+}
+
+struct resolve_out
+{
+	float4 color : COLOR0;
+	float4 mask : COLOR1; // red: distance to the silhouette / radius, 0 inside, 1 at the radius or farther
+};
+
+resolve_out main_ps_3_0(float2 vpos : VPOS)
+{
+	float ss = ui3d_resolve.z;
+	float2 base = (vpos - ui3d_resolve.xy) * ss;
+
+	float3 rgb = 0;
+	float coverage = 0;
+	float mask_cover = 0;
+	[unroll] for (int y = 0; y < 4; ++y)
+	{
+		[unroll] for (int x = 0; x < 4; ++x)
+		{
+			if (x < ss && y < ss)
+			{
+				float2 p = base + float2(x, y);
+				float a = alpha_at(p);
+				rgb += ld(s_ui3d_lit, p).rgb;
+				coverage += a;
+				mask_cover += a > 0.5f ? 1.f : 0.f;
+			}
+		}
+	}
+	float n = ss * ss;
+
+	resolve_out O;
+	O.color = float4(rgb / n, coverage / n);
+
+	float m = 1.f;
+	float radius = ui3d_resolve.w;
+	[branch] if (radius > 0.f)
+	{
+		if (mask_cover > 0.f)
+			m = (1.f - mask_cover / n) / radius;
+		else
+		{
+			float2 c = base + floor(ss * 0.5f);
+			float best = radius;
+			[loop] for (int dy = -20; dy <= 20; ++dy)
+			{
+				[loop] for (int dx = -20; dx <= 20; ++dx)
+				{
+					float d = length(float2(dx, dy));
+					if (d < best && covered(c + float2(dx, dy) * ss))
+						best = d;
+				}
+			}
+			m = best < radius ? saturate((best - 0.5f) / radius) : 1.f;
+		}
+	}
+	O.mask = float4(m, m, m, 1.f);
+	return O;
+}

@@ -1,0 +1,17 @@
+#include "common.h"
+
+// SOP's combine (saturate(scene + bloom * intensity)) as an additive pass over the scene: the 8-bit target saturates by itself
+
+struct v2p
+{
+	float2 tc0 : TEXCOORD0;
+};
+
+uniform sampler2D s_bloom0;
+uniform float4 c_combine_params;
+
+float4 main(v2p I) : COLOR
+{
+	float3 bloom = tex2D(s_bloom0, I.tc0).rgb;
+	return float4(bloom * c_combine_params.x, 1.0f);
+}

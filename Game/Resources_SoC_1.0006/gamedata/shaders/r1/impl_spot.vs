@@ -21,3 +21,7 @@ impl_vf_spot main (v_lmap v)
 
 	return o;
 }
+
+
+
+

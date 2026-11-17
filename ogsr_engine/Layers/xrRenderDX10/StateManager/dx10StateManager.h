@@ -45,6 +45,8 @@ public:
     //	Functions which override value even if new state was set up.
     //	Reset value to current state's value if override is disabled.
     void OverrideScissoring(bool bOverride = true, BOOL bValue = TRUE);
+    bool IsScissorOverridden() const { return m_bOverrideScissoring; }
+    BOOL GetScissorOverrideValue() const { return m_bOverrideScissoringValue; }
 
 private:
     void ValidateRDesc();

@@ -1,0 +1,23 @@
+#include "common.h"
+
+// 3D models in UI: the tile is premultiplied (colour already multiplied by coverage); the static's colour tints it and its alpha fades it.
+// The outline (CUIModel::SetOutline, per draw: ui3d_outline_*) is drawn behind the model from the page's mask (distance to the silhouette)
+// s_mask (common_samplers.h): the page's outline mask
+uniform float4 ui3d_outline; // premultiplied colour (alpha: strength)
+uniform float4 ui3d_outline_params; // x: width (pixels, 0: none), y: softness (pixels: the fall-off past the width, a glow when wide), z: mask range
+
+float4 main(p_TL I) : SV_Target
+{
+    const float4 t = s_base.Sample(smp_nofilter, I.Tex0);
+    float4 o = float4(t.rgb * I.Color.rgb, t.a);
+
+    [branch] if (ui3d_outline_params.x > 0.f)
+    {
+        const float d = s_mask.Sample(smp_nofilter, I.Tex0).r * ui3d_outline_params.z;
+        const float soft = max(ui3d_outline_params.y, 1.f);
+        // full up to the width, falling off over the softness around it (1: an antialiased edge; more: a glow); nothing past the mask range
+        const float a = saturate((ui3d_outline_params.x - d) / soft + 0.5f) * (d < ui3d_outline_params.z ? 1.f : 0.f);
+        o += ui3d_outline * a * (1.f - o.a);
+    }
+    return o * I.Color.a;
+}

@@ -13,6 +13,7 @@
 #include "alife_simulator.h"
 #include "alife_registry_container.h"
 #include "alife_object_registry.h"
+#include "game_graph.h"
 #include "script_game_object.h"
 #include "game_cl_base.h"
 #include "xrServer.h"
@@ -135,8 +136,36 @@ void CActor::AddGameNews(GAME_NEWS_DATA& news_data)
     }
 }
 
+static u16 OwnerAnomalyOfArtefact(const CSE_ALifeItemArtefact* art, const xr_vector<CSE_ALifeAnomalousZone*>& anomalies)
+{
+    // Артефакт, заспавненный аномалией, получает её m_tSpawnID и появляется рядом с её центром.
+    // Дополнительно сверяем уровень и расстояние: у динамически созданных объектов m_tSpawnID может совпадать (u16(-1)).
+    const auto art_level = ai().game_graph().vertex(art->m_tGraphID)->level_id();
+
+    for (const CSE_ALifeAnomalousZone* anomaly : anomalies)
+    {
+        if (anomaly->m_tSpawnID != art->m_tSpawnID)
+            continue;
+
+        if (ai().game_graph().vertex(anomaly->m_tGraphID)->level_id() != art_level)
+            continue;
+
+        const float max_dist = _max(anomaly->m_offline_interactive_radius, 3.f);
+        if (anomaly->o_Position.distance_to(art->o_Position) > max_dist)
+            continue;
+
+        return anomaly->ID;
+    }
+
+    return u16(-1);
+}
+
 static void SpawnOfflineArtefactsOnInfo()
 {
+    static const bool enabled = READ_IF_EXISTS(pSettings, r_bool, "features", "enable_spawn_artefacts", false);
+    if (!enabled)
+        return;
+
     const CALifeSimulator* sim = ai().get_alife();
     if (!sim)
         return;
@@ -144,16 +173,12 @@ static void SpawnOfflineArtefactsOnInfo()
     const CALifeObjectRegistry& object_registry = sim->objects();
 
     u32 anomaly_count = 0;
-    u32 spawned_anomaly_count = 0;
+
+    xr_vector<CSE_ALifeAnomalousZone*> offline_anomalies;
 
     for (const auto& it : object_registry.objects())
     {
-        CSE_ALifeDynamicObject* object = it.second;
-        if (!object)
-            continue;
-
-        CSE_ALifeAnomalousZone* anomaly = smart_cast<CSE_ALifeAnomalousZone*>(object);
-
+        CSE_ALifeAnomalousZone* anomaly = smart_cast<CSE_ALifeAnomalousZone*>(it.second);
         if (!anomaly)
             continue;
 
@@ -162,14 +187,35 @@ static void SpawnOfflineArtefactsOnInfo()
         if (anomaly->m_bOnline)
             continue;
 
-        //Msg("[INFO_ARTS_SPAWN] info triggered offline anomaly [%s][id=%u]", anomaly->name_replace(), anomaly->ID);
-
-        anomaly->spawn_artefacts();
-
-        ++spawned_anomaly_count;
+        offline_anomalies.push_back(anomaly);
     }
 
-    Msg("[INFO_ARTS_SPAWN] anomalies=%u, offline processed=%u", anomaly_count, spawned_anomaly_count);
+    // Удаляем старые неподобранные артефакты этих аномалий, чтобы после каждого выброса они не копились
+    xr_vector<CSE_ALifeDynamicObject*> old_artefacts;
+
+    for (const auto& it : object_registry.objects())
+    {
+        CSE_ALifeItemArtefact* art = smart_cast<CSE_ALifeItemArtefact*>(it.second);
+        if (!art)
+            continue;
+
+        if (art->m_bOnline || art->ID_Parent != 0xffff || art->m_story_id != INVALID_STORY_ID)
+            continue;
+
+        if (OwnerAnomalyOfArtefact(art, offline_anomalies) == u16(-1))
+            continue;
+
+        old_artefacts.push_back(art);
+    }
+
+    CALifeSimulator* sim_mut = const_cast<CALifeSimulator*>(sim);
+    for (CSE_ALifeDynamicObject* art : old_artefacts)
+        sim_mut->release(art, true);
+
+    for (CSE_ALifeAnomalousZone* anomaly : offline_anomalies)
+        anomaly->spawn_artefacts();
+
+    Msg("[INFO_ARTS_SPAWN] anomalies=%u, offline processed=%u, old artefacts removed=%u", anomaly_count, offline_anomalies.size(), old_artefacts.size());
 }
 
 bool CActor::OnReceiveInfo(shared_str info_id) const

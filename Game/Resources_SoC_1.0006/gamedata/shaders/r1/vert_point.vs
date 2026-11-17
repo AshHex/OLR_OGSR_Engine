@@ -15,3 +15,7 @@ vf_point main (v_vert v)
 
 	return o;
 }
+
+
+
+

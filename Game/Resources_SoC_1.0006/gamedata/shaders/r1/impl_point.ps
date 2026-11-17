@@ -11,8 +11,9 @@ float4 	main	( impl_vf_point I )	: COLOR
 	
 	float4 final 		= t_base*t_att*I.color*2;
 
-	float3 t_dt 			= tex2D(s_detail,I.tcd).rgb;
+	float3 t_dt 			= tex2DStochastic(s_detail,I.tcd).rgb;
 		  final.rgb    *= t_dt*2;
 
 	return final;
 }
+
