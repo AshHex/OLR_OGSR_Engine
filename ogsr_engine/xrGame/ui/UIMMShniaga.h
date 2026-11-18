@@ -24,6 +24,7 @@ public:
     virtual bool OnKeyboard(int dik, EUIMessages keyboard_action);
     virtual void SendMessage(CUIWindow* pWnd, s16 msg, void* pData = 0);
     void SetVisibleMagnifier(bool f);
+    bool HasLastSave() const; // the last save exists and is valid (main menu scripts of the SOP layout)
     virtual void OnDeviceReset();
 
 protected:
@@ -68,6 +69,7 @@ protected:
     CUIWindow* m_selected;
     CMMSound* m_sound;
     Fvector2 m_wheel_size[2]{};
+    bool m_keep_aspect{}; // anchored layout: the wheels are not stretched, no widescreen correction
     enum
     {
         fl_SoundFinalized = 1,

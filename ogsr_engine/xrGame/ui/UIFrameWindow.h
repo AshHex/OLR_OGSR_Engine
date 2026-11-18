@@ -34,6 +34,7 @@ public:
     CUIStatic* UITitleText;
     CUIStatic* GetTitleStatic() { return UITitleText; };
     void SetVisiblePart(CUIFrameRect::EFramePart p, BOOL b) { m_UIWndFrame.SetVisiblePart(p, b); };
+    void SetTextureKx(float kx) { m_UIWndFrame.SetTextureKx(kx); }
 
 protected:
     CUIFrameRect m_UIWndFrame;

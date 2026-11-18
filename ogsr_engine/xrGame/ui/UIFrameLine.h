@@ -40,6 +40,7 @@ protected:
     Fvector2 iPos;
     u8 uFlags;
     bool bHorizontalOrientation;
+    float m_kx{1.f}; // multiplier of the texture widths (keep_aspect)
 
     void UpdateSize();
 
@@ -61,6 +62,11 @@ public:
     IC void SetOrientation(bool bIsHorizontal)
     {
         bHorizontalOrientation = bIsHorizontal;
+        uFlags &= ~flValidSize;
+    }
+    void SetTextureKx(float kx)
+    {
+        m_kx = kx;
         uFlags &= ~flValidSize;
     }
     void Render();

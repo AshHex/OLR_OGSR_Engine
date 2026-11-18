@@ -117,6 +117,8 @@ void CUITradeWnd::Init()
     m_uidata->UICharacterInfoLeft.Init(0, 0, m_uidata->UIOurIcon.GetWidth(), m_uidata->UIOurIcon.GetHeight(), TRADE_CHARACTER_XML);
     m_uidata->UIOthersIcon.AttachChild(&m_uidata->UICharacterInfoRight);
     m_uidata->UICharacterInfoRight.Init(0, 0, m_uidata->UIOthersIcon.GetWidth(), m_uidata->UIOthersIcon.GetHeight(), TRADE_CHARACTER_XML);
+    m_uidata->UICharacterInfoLeft.OffsetIcon(uiXml.ReadAttribFlt("static_icon", 0, "icon_dx"), uiXml.ReadAttribFlt("static_icon", 0, "icon_dy"));
+    m_uidata->UICharacterInfoRight.OffsetIcon(uiXml.ReadAttribFlt("static_icon", 1, "icon_dx"), uiXml.ReadAttribFlt("static_icon", 1, "icon_dy"));
 
     //Списки торговли
     AttachChild(&m_uidata->UIOurBagWnd);

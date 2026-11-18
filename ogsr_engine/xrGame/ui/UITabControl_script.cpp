@@ -5,6 +5,9 @@
 using namespace luabind;
 
 #pragma optimize("s", on)
+// a window found by name (CUIWindow::FindChild) as a tab control, nil if it is not one
+static CUITabControl* AsTabControl(CUIWindow* w) { return smart_cast<CUITabControl*>(w); }
+
 void CUITabControl::script_register(lua_State* L)
 {
     module(L)[class_<CUITabControl, CUIWindow>("CUITabControl")
@@ -17,6 +20,8 @@ void CUITabControl::script_register(lua_State* L)
                   .def("GetTabsCount", &CUITabControl::GetTabsCount)
                   .def("SetNewActiveTab", &CUITabControl::SetNewActiveTab)
                   .def("GetButtonByIndex", &CUITabControl::GetButtonByIndex),
+
+              def("as_tab_control", &AsTabControl),
 
               class_<CUITabButton, CUIButton>("CUITabButton").def(constructor<>())
               //.		.def("AssociateWindow",			&CUITabButton::AssociateWindow)

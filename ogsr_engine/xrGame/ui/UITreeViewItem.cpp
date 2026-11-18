@@ -260,6 +260,12 @@ void CUITreeViewItem::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
     }
     else if (pWnd == this && STATIC_FOCUS_RECEIVED == msg)
     {
+        // the 256x32 picture was drawn in its own size and went past narrow lists (SOP PDA): fitted to the item
+        UIBkg.SetTextureOffset(0, 0);
+        UIBkg.SetStretchTexture(true);
+        UIBkg.SetWndPos(0, 0);
+        UIBkg.SetWidth(GetWidth());
+        UIBkg.SetHeight(GetHeight());
         UIBkg.TextureOn();
 
         if (pPrevFocusedItem)

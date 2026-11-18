@@ -62,6 +62,8 @@ public:
     void Init(float x, float y, float width, float height, const char* xml_name);
     void InitCharacter(u16 id);
     void ClearInfo();
+    // shifts only the portrait icon inside the info window (frame and texts stay)
+    void OffsetIcon(float dx, float dy);
 
     virtual void Update();
 

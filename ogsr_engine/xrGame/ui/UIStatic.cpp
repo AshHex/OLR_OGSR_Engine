@@ -267,6 +267,8 @@ void CUIStatic::DrawTexture()
         else
         {
             Frect r = {0.0f, 0.0f, m_UIStaticItem.GetOriginalRectScaled().width(), m_UIStaticItem.GetOriginalRectScaled().height()};
+            if (m_bKeepAspect)
+                r.x2 *= UI()->get_current_kx();
             if (r.width() && r.height())
             {
                 if (Heading())

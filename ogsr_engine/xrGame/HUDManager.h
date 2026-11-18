@@ -78,6 +78,7 @@ public:
 
     void SetHitmarkType(LPCSTR tex_name);
     virtual void OnScreenRatioChanged();
+    void ReloadMainIngameWnd();
     virtual void OnDisconnected();
     virtual void OnConnected();
 

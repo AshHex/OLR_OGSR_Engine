@@ -486,7 +486,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* lpCmdLi
 
 LPCSTR _GetFontTexName(LPCSTR section)
 {
-    constexpr const char* tex_names[] = {"texture800", "texture", "texture1600"};
+    // the tiers are named by screen size, as in SOP: 1600 - up to 1080p, 2k - 1440p, 4k - 2160p
+    constexpr const char* tex_names[] = {"texture800", "texture", "texture1600", "texture2k", "texture4k"};
     int def_idx = 1; // default 1024x768
     int idx = def_idx;
 
@@ -494,10 +495,14 @@ LPCSTR _GetFontTexName(LPCSTR section)
 
     if (h <= 600)
         idx = 0;
-    else if (h <= 900)
+    else if (h < 900)
         idx = 1;
-    else
+    else if (h < 1300)
         idx = 2;
+    else if (h < 2000)
+        idx = 3;
+    else
+        idx = 4;
 
     while (idx >= 0)
     {

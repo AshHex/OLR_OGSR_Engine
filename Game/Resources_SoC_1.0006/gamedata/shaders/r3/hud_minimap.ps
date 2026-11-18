@@ -1,0 +1,19 @@
+#include "common.h"
+
+// HUD minimap with a mask (xrGame\UIZoneMap.cpp, IRender_interface::ui_mask): the map's alpha is multiplied by the red of the mask picture,
+// which lies over the minimap's background on the screen; nothing of the map outside it
+uniform float4 ui_mask_dst; // xy: the mask's left-top on the screen (pixels), zw: 1 / its size
+uniform float4 ui_mask_src; // xy: the mask's rect in its texture (uv), zw: its size (uv)
+
+float4 main(v2p_TL I) : SV_Target
+{
+    float4 t = s_base.Sample(smp_rtlinear, I.Tex0) * I.Color;
+
+    // SV_Position: the pixel's centre
+    const float2 p = (I.HPos.xy - ui_mask_dst.xy) * ui_mask_dst.zw; // in the mask, 0..1
+    const float inside = all(p >= 0.f) && all(p <= 1.f) ? 1.f : 0.f;
+    const float m = s_mask.Sample(smp_rtlinear, ui_mask_src.xy + saturate(p) * ui_mask_src.zw).r;
+
+    t.a *= m * inside;
+    return t;
+}

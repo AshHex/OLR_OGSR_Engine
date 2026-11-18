@@ -1,6 +1,6 @@
 #include "common.h"
 
-#ifdef USE_TDETAIL
+#if defined(USE_TDETAIL) && !defined(USE_1_DETAIL)
 
 #include "settings_screenspace_PUDDLES.h"
 #include "settings_screenspace_SSR.h"
@@ -266,6 +266,10 @@ f_deffer main(p_bumped I)
 f_deffer main(p_flat I)
 {
     float4 D = s_base.Sample(smp_base, I.tcdh.xy);
+#ifdef USE_1_DETAIL
+    // terrain without "<base>_mask": base * one detail texture (as on R1)
+    D.rgb = 2 * D.rgb * s_detail.Sample(smp_base, I.tcdbump).rgb;
+#endif
     float G = 0.001; // def_gloss
     float3 N = I.N.xyz;
 

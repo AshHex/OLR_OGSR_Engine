@@ -98,6 +98,7 @@ public:
 
     virtual void OnDeviceReset();
     shared_str get_xml_name(LPCSTR fn);
+    float m_last_aspect{};
     float get_current_kx();
 
     IUIRender::ePointType m_currentPointType;

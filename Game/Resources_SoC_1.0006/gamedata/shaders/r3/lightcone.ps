@@ -1,0 +1,17 @@
+#include "common.h"
+// Световой конус (models\lightcone): форма луча - в альфе текстуры (RGB у lights\lights_cone чёрный), цвет - тёплый белый свет
+// прожектора; складывается с картинкой (blend one,one), края гаснут по углу к камере.
+struct v2p
+{
+    float2 tc0 : TEXCOORD0; // base
+    float4 c0 : COLOR0; // fade
+};
+
+float4 main(v2p I) : SV_Target
+{
+    float4 t_base = s_base.Sample(smp_base, I.tc0);
+    float fade = I.c0.a;
+    float3 beam = float3(1.0f, 0.93f, 0.8f) * 0.3f;
+    float a = t_base.a * fade * fade;
+    return float4(beam * a, a);
+}

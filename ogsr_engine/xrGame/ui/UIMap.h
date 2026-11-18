@@ -16,8 +16,10 @@ protected:
         eLocked = (1 << 0),
     };
     float m_pointer_dist;
+    shared_str m_mask_texture; // the second texture of the map's shader (HUD minimap with a mask: hud\minimap)
 
 public:
+    void SetMaskTexture(const shared_str& tex) { m_mask_texture = tex; }
     Frect m_prevRect;
     CUICustomMap();
     virtual ~CUICustomMap();

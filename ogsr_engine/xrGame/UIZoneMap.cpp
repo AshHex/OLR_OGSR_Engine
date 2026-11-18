@@ -16,6 +16,7 @@
 
 #include "ui/UIMap.h"
 #include "ui/UIXmlInit.h"
+#include "ui/UITextureMaster.h"
 //////////////////////////////////////////////////////////////////////////
 
 CUIZoneMap::CUIZoneMap() {}
@@ -37,6 +38,28 @@ void CUIZoneMap::Init()
 
     xml_init.InitStatic(uiXml, "minimap:level_frame", 0, &m_clipFrame);
 
+    m_map_color = uiXml.NavigateToNode("minimap:level_frame:map_color", 0) ? CUIXmlInit::GetColor(uiXml, "minimap:level_frame:map_color", 0, 0xff) : 0x7fffffff;
+
+    m_mask_file = nullptr;
+    LPCSTR mask = uiXml.Read("minimap:background:mask", 0, nullptr);
+    if (mask && *mask)
+    {
+        if (!strchr(mask, '\\')) // an atlas id (textures_descr)
+        {
+            if (LPCSTR file = CUITextureMaster::GetTextureFileName(mask))
+            {
+                m_mask_file = file;
+                m_mask_src = CUITextureMaster::GetTextureRect(mask);
+            }
+        }
+        else
+        {
+            // a whole file: an empty rect, the render side takes the whole texture
+            m_mask_file = mask;
+            m_mask_src = {};
+        }
+    }
+
     xml_init.InitStatic(uiXml, "minimap:center", 0, &m_center);
 
     m_activeMap = xr_new<CUIMiniMap>();
@@ -56,6 +79,28 @@ void CUIZoneMap::Init()
 
 void CUIZoneMap::Render()
 {
+    if (m_mask_file.size())
+    {
+        // the mask lies over the background picture as CUIStatic::DrawTexture draws it (stretch="0": the texture's own size); in screen pixels
+        Frect r;
+        m_background.GetAbsoluteRect(r);
+        if (!m_background.GetStretchTexture())
+        {
+            const Frect o = m_background.GetStaticItem()->GetOriginalRectScaled();
+            if (o.width() > 0.f && o.height() > 0.f)
+            {
+                const Fvector2 off = m_background.GetTextureOffeset();
+                r.x1 += off.x;
+                r.y1 += off.y;
+                r.x2 = r.x1 + o.width() * (m_background.GetKeepAspect() ? UI()->get_current_kx() : 1.f);
+                r.y2 = r.y1 + o.height();
+            }
+        }
+        Fvector2 lt, rb;
+        UI()->ClientToScreenScaled(lt, r.x1, r.y1);
+        UI()->ClientToScreenScaled(rb, r.x2, r.y2);
+        ::Render->ui_mask(Frect{}.set(lt.x, lt.y, rb.x, rb.y), m_mask_file.c_str(), m_mask_src);
+    }
     m_clipFrame.Draw();
     m_background.Draw();
     m_compass.Draw();
@@ -121,7 +166,9 @@ void CUIZoneMap::SetupCurrentMap()
     m_activeMap->EnableHeading(true);
     m_activeMap->SetWindowName("minimap");
 
-    m_activeMap->Init(Level().name(), *pLtx, "hud\\default");
+    m_activeMap->SetMaskTexture(m_mask_file);
+    m_activeMap->Init(Level().name(), *pLtx, m_mask_file.size() ? "hud\\minimap" : "hud\\default");
+    m_activeMap->SetColor(m_map_color);
 
     Frect r;
     m_clipFrame.GetAbsoluteRect(r);

@@ -35,6 +35,8 @@ public:
 
     void SetMin(float v) { m_f_min_xml = v; }
     void SetMax(float v) { m_f_max_xml = v; }
+    // false: the slider button shows no value (as in SoC / SOP)
+    void SetShowValue(bool v) { m_b_show_value = v; }
 
 protected:
     void UpdatePos();
@@ -45,6 +47,7 @@ protected:
     CUIFrameLineWnd* m_pFrameLine_d;
     bool m_b_invert;
     bool m_b_is_float;
+    bool m_b_show_value = true;
 
     float m_f_max_xml = 0.f;
     float m_f_min_xml = 0.f;

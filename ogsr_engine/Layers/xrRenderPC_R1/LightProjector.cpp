@@ -104,6 +104,7 @@ void CLightProjector::setup(int id)
     if (id >= int(cache.size()) || id < 0)
     {
         // Log		("! CLightProjector::setup - ID out of range");
+        setup_none();
         return;
     }
     recv& R = cache[id];
@@ -115,6 +116,15 @@ void CLightProjector::setup(int id)
     RCache.set_ca(c_clamp, 0, m.x, m.y, m.z, factor);
     Fvector& M = R.UVclamp_max;
     RCache.set_ca(c_clamp, 1, M.x, M.y, M.z, 0);
+}
+
+// Without this the constants of the previously drawn object stay set: the model samples another object's projector tile
+// (small items far than clipD or not receiving shadows - glasses, bottles, cigarettes - glowed in dark rooms depending on the
+// draw order, i.e. on the view angle). factor = 1 makes lerp(projector, lq-color, factor) take the LQ lighting only.
+void CLightProjector::setup_none()
+{
+    RCache.set_ca(c_clamp, 0, 0.f, 0.f, 0.f, 1.f);
+    RCache.set_ca(c_clamp, 1, 0.f, 0.f, 0.f, 0.f);
 }
 
 void CLightProjector::invalidate()

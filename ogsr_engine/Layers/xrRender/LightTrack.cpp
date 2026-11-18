@@ -274,6 +274,9 @@ void CROS_impl::update(IRenderable* O)
     if (bFirstTime)
     {
         hemi_smooth = hemi_value;
+#if RENDER == R_R1
+        sun_smooth = sun_value; // R1: no fade from the default 0.2 (items lit by the sun in dark rooms for seconds)
+#endif
         CopyMemory(hemi_cube_smooth, hemi_cube, NUM_FACES * sizeof(float));
     }
 

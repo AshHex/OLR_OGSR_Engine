@@ -46,6 +46,7 @@ public:
     BOOL shadowing() { return current != 0; }
     void calculate();
     void setup(int slot);
+    void setup_none(); // object without a projector slot this frame: the shaders take only the LQ lighting
     void finalize()
     {
         receivers.clear();

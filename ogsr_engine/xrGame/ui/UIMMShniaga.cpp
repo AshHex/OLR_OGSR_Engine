@@ -14,6 +14,8 @@
 
 extern string_path g_last_saved_game;
 
+bool CUIMMShniaga::HasLastSave() const { return *g_last_saved_game && CSavedGameWrapper::valid_saved_game(g_last_saved_game); }
+
 CUIMMShniaga::CUIMMShniaga()
 {
     m_sound = xr_new<CMMSound>();
@@ -69,6 +71,7 @@ void CUIMMShniaga::Init(CUIXml& xml_doc, LPCSTR path)
     string256 _path;
 
     CUIXmlInit::InitWindow(xml_doc, path, 0, this);
+    m_keep_aspect = xml_doc.IsKeepAspect(path, 0);
     strconcat(sizeof(_path), _path, path, ":shniaga:magnifire");
     CUIXmlInit::InitStatic(xml_doc, _path, 0, m_magnifier);
     m_mag_pos = m_magnifier->GetWndPos().x;
@@ -118,7 +121,7 @@ void CUIMMShniaga::Init(CUIXml& xml_doc, LPCSTR path)
 
 void CUIMMShniaga::OnDeviceReset()
 {
-    if (UI()->is_widescreen())
+    if (UI()->is_widescreen() && !m_keep_aspect)
     {
         m_anims[0]->SetWndSize(m_wheel_size[1]);
         m_anims[1]->SetWndSize(m_wheel_size[1]);

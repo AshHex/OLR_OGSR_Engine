@@ -25,6 +25,17 @@ CBlender_BmmD::CBlender_BmmD()
 
 CBlender_BmmD::~CBlender_BmmD() {}
 
+#if RENDER != R_R1
+// Terrain HQ blends four detail textures by "<base>_mask". Without it the engine binds
+// ed_not_existing_texture as the mask and the terrain gets dark blotches, so such terrain
+// falls back to the LQ (base + detail) path.
+static bool terrain_mask_exists(LPCSTR mask)
+{
+    string_path fn;
+    return FS.exist(fn, "$level$", mask, ".dds") || FS.exist(fn, "$game_textures$", mask, ".dds");
+}
+#endif
+
 void CBlender_BmmD::Save(IWriter& fs)
 {
     IBlender::Save(fs);
@@ -145,9 +156,27 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
     // ***only pixel shaders differ***
     string256 mask;
     strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_mask");
+    const bool has_mask = terrain_mask_exists(mask);
     switch (C.iElement)
     {
     case SE_R2_NORMAL_HQ: // deffer
+        if (!has_mask)
+        {
+            // Without the mask the LQ path draws only the stretched base texture (blurry terrain),
+            // so blend in the shader's single detail texture like R1 does. dt_params comes from
+            // the base texture's detail scaler; without it the detail tc would collapse to zero.
+            if (C.detail_scaler && oT2_Name[0] && 0 != xr_strcmp(oT2_Name, "$null"))
+            {
+                C.r_Pass("deffer_base_flat_d", "deffer_impl_flat_dt", FALSE);
+                C.r_Sampler("s_base", C.L_textures[0], false, D3DTADDRESS_WRAP, D3DTEXF_ANISOTROPIC, D3DTEXF_LINEAR, D3DTEXF_ANISOTROPIC);
+                C.r_Sampler("s_detail", oT2_Name, false, D3DTADDRESS_WRAP, D3DTEXF_ANISOTROPIC, D3DTEXF_LINEAR, D3DTEXF_ANISOTROPIC);
+            }
+            else
+                uber_deffer(C, false, "base", "impl", false, oT2_Name[0] ? oT2_Name : 0, true);
+            C.r_Sampler("s_lmap", C.L_textures[1]);
+            C.r_End();
+            break;
+        }
         uber_deffer(C, true, "impl", "impl", false, oT2_Name[0] ? oT2_Name : 0, true);
         C.r_Sampler("s_mask", mask);
         C.r_Sampler("s_lmap", C.L_textures[1]);
@@ -196,9 +225,29 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
     // ***only pixel shaders differ***
     string256 mask;
     strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_mask");
+    const bool has_mask = terrain_mask_exists(mask);
     switch (C.iElement)
     {
     case SE_R2_NORMAL_HQ: // deffer
+        if (!has_mask)
+        {
+            // See R2: blend in the single detail texture instead of the bare stretched base.
+            if (C.detail_scaler && oT2_Name[0] && 0 != xr_strcmp(oT2_Name, "$null"))
+            {
+                C.r_Pass("deffer_base_flat_d", "deffer_impl_flat_dt", FALSE);
+                C.r_dx10Texture("s_base", C.L_textures[0]);
+                C.r_dx10Texture("s_detail", oT2_Name);
+                C.r_dx10Sampler("smp_base");
+            }
+            else
+                uber_deffer(C, false, "base", "impl", false, oT2_Name[0] ? oT2_Name : 0, true);
+            C.r_dx10Texture("s_lmap", C.L_textures[1]);
+            C.r_dx10Sampler("smp_linear");
+            C.r_Stencil(TRUE, D3DCMP_ALWAYS, 0xff, 0x7f, D3DSTENCILOP_KEEP, D3DSTENCILOP_REPLACE, D3DSTENCILOP_KEEP);
+            C.r_StencilRef(0x01);
+            C.r_End();
+            break;
+        }
         uber_deffer(C, true, "impl", "impl", false, oT2_Name[0] ? oT2_Name : 0, true);
         // C.r_Sampler		("s_mask",	mask);
         // C.r_Sampler		("s_lmap",	C.L_textures[1]);

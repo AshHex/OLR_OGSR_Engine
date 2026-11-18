@@ -57,9 +57,9 @@ void CUIFrameLineWnd::Draw()
         GetAbsolutePos(p);
         UIFrameLine.SetPos(p.x, p.y);
         UIFrameLine.Render();
-
-        inherited::Draw();
     }
+    // a line without texture (SOP layouts draw frames with auto statics) still holds windows: the diary filter tab
+    inherited::Draw();
 }
 
 //////////////////////////////////////////////////////////////////////////

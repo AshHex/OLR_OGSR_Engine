@@ -19,6 +19,7 @@ public:
     virtual void SetOrientation(bool horizontal);
     float GetTextureHeight();
     void SetColor(u32 cl);
+    void SetTextureKx(float kx) { UIFrameLine.SetTextureKx(kx); }
 
     // Also we can display textual caption on the frame
     CUIStatic UITitleText;

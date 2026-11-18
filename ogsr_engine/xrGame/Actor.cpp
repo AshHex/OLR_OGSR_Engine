@@ -1160,7 +1160,17 @@ void CActor::shedule_Update(u32 DT)
     //что актер видит перед собой
     collide::rq_result& RQ = HUD().GetCurrentRayQuery();
 
-    if (!input_external_handler_installed() && !m_holder && RQ.O && RQ.O->getVisible() && RQ.range < inventory().GetTakeDist())
+    float pick_dist = inventory().GetTakeDist();
+    if (RQ.O)
+    {
+        // с живыми персонажами можно заговорить с большего расстояния (talk_dist в их секции)
+        auto talker = smart_cast<CInventoryOwner*>(RQ.O);
+        auto talker_alive = smart_cast<CEntityAlive*>(RQ.O);
+        if (talker && talker_alive && talker_alive->g_Alive())
+            pick_dist = std::max(pick_dist, talker->TalkDist(RQ.O->cNameSect()));
+    }
+
+    if (!input_external_handler_installed() && !m_holder && RQ.O && RQ.O->getVisible() && RQ.range < pick_dist)
     {
         m_pObjectWeLookingAt = smart_cast<CGameObject*>(RQ.O);
         m_pUsableObject = smart_cast<CUsableScriptObject*>(RQ.O);

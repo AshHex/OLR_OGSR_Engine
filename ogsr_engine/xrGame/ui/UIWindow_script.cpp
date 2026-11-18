@@ -147,7 +147,7 @@ void CUIWindow::script_register(lua_State* L)
 
               class_<CUILabel, CUIFrameLineWnd>("CUILabel").def(constructor<>()).def("SetText", &CUILabel::SetText).def("GetText", &CUILabel::GetText),
 
-              class_<CUIMMShniaga, CUIWindow>("CUIMMShniaga").def("SetVisibleMagnifier", &CUIMMShniaga::SetVisibleMagnifier),
+              class_<CUIMMShniaga, CUIWindow>("CUIMMShniaga").def("SetVisibleMagnifier", &CUIMMShniaga::SetVisibleMagnifier).def("HasLastSave", &CUIMMShniaga::HasLastSave),
 
               class_<CUIScrollView, CUIWindow>("CUIScrollView")
                   .def(constructor<>())

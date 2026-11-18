@@ -123,6 +123,8 @@ bool CUIXmlInit::InitFrameWindow(CUIXml& xml_doc, LPCSTR path, int index, CUIFra
 
     InitWindow(xml_doc, path, index, pWnd);
     InitTexture(xml_doc, path, index, pWnd);
+    if (xml_doc.IsKeepAspect(path, index))
+        pWnd->SetTextureKx(UI()->get_current_kx());
 
     string256 buf;
     /*
@@ -178,6 +180,7 @@ bool CUIXmlInit::InitStatic(CUIXml& xml_doc, LPCSTR path, int index, CUIStatic* 
     InitMultiText(xml_doc, path, index, pWnd);
     InitTexture(xml_doc, path, index, pWnd);
     InitTextureOffset(xml_doc, path, index, pWnd);
+    pWnd->SetKeepAspect(xml_doc.IsKeepAspect(path, index));
 
     pWnd->EnableHeading(!!xml_doc.ReadAttribInt(path, index, "heading", 0));
 
@@ -313,6 +316,15 @@ bool CUIXmlInit::Init3tButton(CUIXml& xml_doc, const char* path, int index, CUI3
     InitMultiTexture(xml_doc, path, index, pWnd);
     InitTextureOffset(xml_doc, path, index, pWnd);
     InitSound(xml_doc, path, index, pWnd);
+    pWnd->SetKeepAspect(xml_doc.IsKeepAspect(path, index));
+    if (xml_doc.IsKeepAspect(path, index))
+    {
+        // the state textures are drawn by the background statics
+        CUI_IB_Static& bg = pWnd->m_background;
+        for (CUIStatic* s : {bg.GetE(), bg.GetD(), bg.GetT(), bg.GetH()})
+            if (s)
+                s->SetKeepAspect(true);
+    }
 
     pWnd->EnableHeading(!!xml_doc.ReadAttribInt(path, index, "heading", 0));
     pWnd->SetStretchTexture(!!xml_doc.ReadAttribInt(path, index, "stretch"));
@@ -469,12 +481,13 @@ bool CUIXmlInit::InitDragDropListEx(CUIXml& xml_doc, const char* path, int index
     }
     else
     {
-        w_cell_sz.x = xml_doc.ReadAttribInt(path, index, "cell_width");
+        // float reads: anchored layouts scale horizontal values (see CUIXml::TransformLayoutAttrib)
+        w_cell_sz.x = iFloor(xml_doc.ReadAttribFlt(path, index, "cell_width") + 0.5f);
         w_cell_sz.y = xml_doc.ReadAttribInt(path, index, "cell_height");
         w_cells.y = xml_doc.ReadAttribInt(path, index, "rows_num");
         w_cells.x = xml_doc.ReadAttribInt(path, index, "cols_num");
 
-        w_cell_sp.x = xml_doc.ReadAttribInt(path, index, "cell_sp_x", 0);
+        w_cell_sp.x = iFloor(xml_doc.ReadAttribFlt(path, index, "cell_sp_x", 0) + 0.5f);
         w_cell_sp.y = xml_doc.ReadAttribInt(path, index, "cell_sp_y", 0);
     }
     /** end Add by Zander */
@@ -874,20 +887,26 @@ bool CUIXmlInit::InitFrameLine(CUIXml& xml_doc, const char* path, int index, CUI
     strconcat(sizeof(buf), buf, path, ":texture");
     shared_str base_name = xml_doc.Read(buf, index, NULL);
 
-    VERIFY(base_name);
-    /*	{
-            pWnd->Init(x, y, width, height);
-            return true;
-        }
-    */
-    u32 color = GetColor(xml_doc, buf, index, 0xff);
-    pWnd->SetColor(color);
+    if (!base_name.size())
+    {
+        // no texture (SOP layouts draw their frames with auto statics): a window with the title only
+        pWnd->Init(x, y, width, height);
+    }
+    else
+    {
+        u32 color = GetColor(xml_doc, buf, index, 0xff);
+        pWnd->SetColor(color);
 
-    pWnd->Init(*base_name, x, y, width, height, !vertical);
+        pWnd->Init(*base_name, x, y, width, height, !vertical);
+        if (xml_doc.IsKeepAspect(path, index))
+            pWnd->SetTextureKx(UI()->get_current_kx());
+    }
 
     strconcat(sizeof(buf), buf, path, ":title");
     if (xml_doc.NavigateToNode(buf, index))
         InitStatic(xml_doc, buf, index, &pWnd->UITitleText);
+    else if (!base_name.size())
+        pWnd->UITitleText.Show(false); // a line without texture and title (SOP layouts): the code-set caption (e.g. the PDA path) is not drawn
 
     return true;
 }
@@ -1448,6 +1467,8 @@ bool CUIXmlInit::InitTrackBar(CUIXml& xml_doc, const char* path, int index, CUIT
 
     float max_xml = xml_doc.ReadAttribFlt(path, index, "max", 0.0f);
     pWnd->SetMax(max_xml);
+
+    pWnd->SetShowValue(!!xml_doc.ReadAttribInt(path, index, "show_value", 1));
 
     return true;
 }

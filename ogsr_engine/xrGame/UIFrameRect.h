@@ -40,6 +40,11 @@ public:
     virtual void Update();
     void SetTextureColor(u32 cl);
     void SetVisiblePart(EFramePart p, BOOL b) { m_itm_mask.set(u16(1 << p), b); };
+    void SetTextureKx(float kx)
+    {
+        m_kx = kx;
+        uFlags.set(flValidSize, FALSE);
+    }
 
 protected:
     CUIStaticItem frame[fmMax];
@@ -50,6 +55,7 @@ protected:
         flSingleTex = (1 << 1),
     };
     Flags8 uFlags;
+    float m_kx{1.f}; // multiplier of the texture widths (keep_aspect)
     void UpdateSize();
 };
 

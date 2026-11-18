@@ -56,8 +56,16 @@ LPCSTR GAME_NEWS_DATA::SingleLineText()
     sprintf_s(time, "%02i:%02i ", hours, minutes);
     //	strconcat	(result, locationName, time, newsPhrase);
 
+    // SoC-style texts start with a line break ("\nCaption:\nText") to put the time on its own line;
+    // as in SOP / CoP the caption goes next to the time: "12:00 Caption:" + "Text" on the next line
+    LPCSTR text = news_text.size() ? news_text.c_str() : "";
+    if (text[0] == '\\' && text[1] == 'n')
+        text += 2;
+    else if (text[0] == '\n')
+        text += 1;
+
     full_news_text = time;
-    full_news_text += news_text.c_str();
+    full_news_text += text;
 
     return full_news_text.c_str();
 }

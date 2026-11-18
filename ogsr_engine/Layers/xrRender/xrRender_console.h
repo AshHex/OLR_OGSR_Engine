@@ -11,6 +11,10 @@ extern float ps_r_ui3d_exposure;
 // dxUIRender::SetShader puts them into the shader when they changed
 extern Fvector4 g_ui3d_outline, g_ui3d_outline_params;
 extern bool g_ui3d_outline_dirty;
+// the mask of hud\minimap (IRender_interface::ui_mask): ui_mask_dst (screen pixels: x, y, 1/w, 1/h), the mask's rect in its texture (pixels)
+// and the texture; dxUIRender::SetShader turns the rect into ui_mask_src (uv) with the texture's size
+extern Fvector4 g_ui_mask_dst, g_ui_mask_src;
+extern shared_str g_ui_mask_texture;
 
 extern ECORE_API u32 ps_r_pp_aa_mode;
 

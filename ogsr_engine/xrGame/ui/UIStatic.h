@@ -159,6 +159,9 @@ public:
 
     virtual void SetStretchTexture(bool stretch_texture) { m_bStretchTexture = stretch_texture; }
     bool GetStretchTexture() { return m_bStretchTexture; }
+    // anchored layout (square units): a texture that is not stretched keeps its aspect on wide screens
+    void SetKeepAspect(bool v) { m_bKeepAspect = v; }
+    bool GetKeepAspect() const { return m_bKeepAspect; }
 
     void SetClipRect(Frect r);
     Frect GetSelfClipRect();
@@ -212,6 +215,7 @@ protected:
 
     bool m_bClipper;
     bool m_bStretchTexture;
+    bool m_bKeepAspect{};
     bool m_bAvailableTexture;
     bool m_bTextureEnable;
     CUIStaticItem m_UIStaticItem;

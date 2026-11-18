@@ -152,7 +152,7 @@ class cl_r1a_fog_height final : public R_constant_setup
 {
     void setup(R_constant* C) override
     {
-        const bool on = ps_r1a_hfog_enable && R1A.has_emitter();
+        const bool on = ps_r1a_hfog_enable && R1A.has_emitter() && !R1A.hud_pass();
         RCache.set_c(C, on ? R1A.emitter().min_y + env().emitter_height : 0.f, on ? _max(env().emitter_power, 0.f) : 0.f, 0.f, 0.f);
     }
 } binder_r1a_fog_height;

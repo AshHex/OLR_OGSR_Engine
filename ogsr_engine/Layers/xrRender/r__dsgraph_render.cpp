@@ -8,9 +8,34 @@
 
 #include "FBasicVisual.h"
 
+#if RENDER == R_R1
+#include "../xrRenderPC_R1/r1a_fog.h"
+#endif
+
 extern ENGINE_API float psHUD_FOV;
 
 using namespace R_dsgraph;
+
+namespace
+{
+// R1: the HUD is drawn camera-relative, the R1A height fog must be off there (see CR1A::set_hud_pass). The constant table
+// cache is dropped on both sides, otherwise a shader shared by the world and the HUD would keep the other pass' constants
+struct hud_pass_scope
+{
+#if RENDER == R_R1
+    hud_pass_scope()
+    {
+        R1A.set_hud_pass(true);
+        RCache.set_Constants((R_constant_table*)nullptr);
+    }
+    ~hud_pass_scope()
+    {
+        R1A.set_hud_pass(false);
+        RCache.set_Constants((R_constant_table*)nullptr);
+    }
+#endif
+};
+} // namespace
 
 extern float r_ssaDISCARD;
 extern float r_ssaDONTSORT;
@@ -527,16 +552,19 @@ void R_dsgraph_structure::r_dsgraph_render_hud()
     RCache.set_xform_project(Device.mProject);
 
     // Rendering
-    rmNear();
-    mapHUD.traverseLR(sorted_L1);
-    mapHUD.clear();
+    {
+        [[maybe_unused]] hud_pass_scope hud_pass;
+        rmNear();
+        mapHUD.traverseLR(sorted_L1);
+        mapHUD.clear();
 
 #if RENDER == R_R1
-    if (g_hud && g_hud->RenderActiveItemUIQuery())
-        r_dsgraph_render_hud_ui(); // hud ui
+        if (g_hud && g_hud->RenderActiveItemUIQuery())
+            r_dsgraph_render_hud_ui(); // hud ui
 #endif
 
-    rmNormal();
+        rmNormal();
+    }
 
     // Restore projection
     Device.mProject = Pold;
@@ -637,10 +665,13 @@ void R_dsgraph_structure::r_dsgraph_render_sorted()
     RCache.set_xform_project(Device.mProject);
 
     // Rendering
-    rmNear();
-    mapHUDSorted.traverseRL(sorted_L1);
-    mapHUDSorted.clear();
-    rmNormal();
+    {
+        [[maybe_unused]] hud_pass_scope hud_pass;
+        rmNear();
+        mapHUDSorted.traverseRL(sorted_L1);
+        mapHUDSorted.clear();
+        rmNormal();
+    }
 
     // Restore projection
     Device.mProject = Pold;

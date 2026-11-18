@@ -69,6 +69,20 @@ CMainMenu::~CMainMenu()
 
 void CMainMenu::ReadTextureInfo()
 {
+    // all files of config\ui\textures_descr (as in CoP / SOP); they go first, so their ids win over [texture_desc]
+    {
+        string_path path;
+        FS.update_path(path, CONFIG_PATH, "ui\\textures_descr\\");
+        FS_FileSet files;
+        FS.file_list(files, path, FS_ListFiles | FS_RootOnly, "*.xml");
+        for (const auto& f : files)
+        {
+            string_path name;
+            xr_strconcat(name, "textures_descr\\", f.name.c_str());
+            CUITextureMaster::ParseShTexInfo(name);
+        }
+    }
+
     if (pSettings->section_exist("texture_desc"))
     {
         xr_string itemsList;

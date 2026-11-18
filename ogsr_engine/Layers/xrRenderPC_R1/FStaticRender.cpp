@@ -408,6 +408,8 @@ void CRender::apply_object(IRenderable* O)
         // shadowing
         if ((LT.shadow_recv_frame == Device.dwFrame) && O->renderable_ShadowReceive())
             RImplementation.L_Projector->setup(LT.shadow_recv_slot);
+        else
+            RImplementation.L_Projector->setup_none();
     }
 }
 
@@ -596,11 +598,13 @@ void CRender::Calculate()
                                 break; // exit loop on frustums
 
                             // rendering
-                            if (o_it == uID_LTRACK && renderable->renderable_ROS())
+                            // track lighting environment: one object a frame in turn, plus every object seen for the
+                            // first time - until its first update it is lit by the defaults (hemi 0.5, sun 0.2), and with
+                            // hundreds of renderables in turn small items (cigarettes, bottles, glasses) glowed in dark rooms
+                            if (CROS_impl* T = (CROS_impl*)renderable->renderable_ROS())
                             {
-                                // track lighting environment
-                                CROS_impl* T = (CROS_impl*)renderable->renderable_ROS();
-                                T->update(renderable);
+                                if (o_it == uID_LTRACK || T->dwFrame == u32(-1))
+                                    T->update(renderable);
                             }
                             set_Object(renderable);
                             renderable->renderable_Render();

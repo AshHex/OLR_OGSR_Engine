@@ -113,7 +113,7 @@ void CUITrackBar::SaveValue()
         sprintf_s(buf, "%d", m_i_val);
     }
 
-    m_pSlider->SetText(buf);
+    m_pSlider->SetText(m_b_show_value ? buf : "");
     GetMessageTarget()->SendMessage(this, TRACKBAR_CHANGED);
 }
 

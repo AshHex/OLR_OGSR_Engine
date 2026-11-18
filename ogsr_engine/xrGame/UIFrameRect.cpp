@@ -98,15 +98,22 @@ void CUIFrameRect::UpdateSize()
 
     Fvector2 _bk, _lt, _lb, _rb, _rt, _l, _r, _t, _b;
 
-    _bk.set(frame[fmBK].GetOriginalRect().width(), frame[fmBK].GetOriginalRect().height());
-    _lt.set(frame[fmLT].GetOriginalRect().width(), frame[fmLT].GetOriginalRect().height());
-    _lb.set(frame[fmLB].GetOriginalRect().width(), frame[fmLB].GetOriginalRect().height());
-    _rb.set(frame[fmRB].GetOriginalRect().width(), frame[fmRB].GetOriginalRect().height());
-    _rt.set(frame[fmRT].GetOriginalRect().width(), frame[fmRT].GetOriginalRect().height());
-    _l.set(frame[fmL].GetOriginalRect().width(), frame[fmL].GetOriginalRect().height());
-    _r.set(frame[fmR].GetOriginalRect().width(), frame[fmR].GetOriginalRect().height());
-    _t.set(frame[fmT].GetOriginalRect().width(), frame[fmT].GetOriginalRect().height());
-    _b.set(frame[fmB].GetOriginalRect().width(), frame[fmB].GetOriginalRect().height());
+    // keep_aspect: the widths of the textures in square units (the virtual 1024 width is stretched on a wide screen)
+    for (int k = 0; k < fmMax; ++k)
+    {
+        const Frect r = frame[k].GetOriginalRect();
+        frame[k].SetRect(0, 0, r.width() * m_kx, r.height());
+    }
+
+    _bk.set(frame[fmBK].GetOriginalRect().width() * m_kx, frame[fmBK].GetOriginalRect().height());
+    _lt.set(frame[fmLT].GetOriginalRect().width() * m_kx, frame[fmLT].GetOriginalRect().height());
+    _lb.set(frame[fmLB].GetOriginalRect().width() * m_kx, frame[fmLB].GetOriginalRect().height());
+    _rb.set(frame[fmRB].GetOriginalRect().width() * m_kx, frame[fmRB].GetOriginalRect().height());
+    _rt.set(frame[fmRT].GetOriginalRect().width() * m_kx, frame[fmRT].GetOriginalRect().height());
+    _l.set(frame[fmL].GetOriginalRect().width() * m_kx, frame[fmL].GetOriginalRect().height());
+    _r.set(frame[fmR].GetOriginalRect().width() * m_kx, frame[fmR].GetOriginalRect().height());
+    _t.set(frame[fmT].GetOriginalRect().width() * m_kx, frame[fmT].GetOriginalRect().height());
+    _b.set(frame[fmB].GetOriginalRect().width() * m_kx, frame[fmB].GetOriginalRect().height());
 
     Fvector2 wnd_pos = GetWndPos();
     frame[fmLT].SetPos(wnd_pos.x, wnd_pos.y);

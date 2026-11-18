@@ -362,6 +362,9 @@ public:
     // the outline of the next draws of tiles (hud\ui3d) until set again: colour (alpha = strength), width and softness in screen pixels;
     // width 0: none. Set around one static's draw (the UI draws each static at once)
     virtual void ui_model_outline(const Fcolor& color, float width, float softness) {}
+    // the mask of the next draws of hud\minimap (the HUD minimap, SOP style): screen_rect - where the mask lies on the screen (pixels),
+    // texture - its file (the shader's second texture), src - its rect inside the texture (pixels). The map's alpha is multiplied by the red of the mask
+    virtual void ui_mask(const Frect& screen_rect, LPCSTR texture, const Frect& src) {}
 
     // Constructor/destructor
     virtual ~IRender_interface();

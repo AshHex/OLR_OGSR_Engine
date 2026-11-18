@@ -32,6 +32,26 @@ void dxUIRender::SetShader(IUIShader& shader)
         RCache.set_c("ui3d_outline_params", g_ui3d_outline_params);
         g_ui3d_outline_dirty = false;
     }
+
+    // hud\minimap: where its mask lies on the screen and its rect in the mask texture (uv, by the size of the shader's texture of that name)
+    if (R_constant* c = RCache.get_c("ui_mask_dst")._get())
+    {
+        Fvector4 src{0.f, 0.f, 1.f, 1.f};
+        const SPass* pass = pShader->hShader->E[0] && !pShader->hShader->E[0]->passes.empty() ? pShader->hShader->E[0]->passes[0]._get() : nullptr;
+        if (pass && pass->T && g_ui_mask_texture.size() && g_ui_mask_src.z > 0.f && g_ui_mask_src.w > 0.f) // empty rect: the whole texture
+        {
+            for (const auto& [stage, tex] : *pass->T)
+            {
+                if (!tex || _stricmp(tex->cName.c_str(), g_ui_mask_texture.c_str()))
+                    continue;
+                const float w = static_cast<float>(std::max(tex->get_Width(), 1u)), h = static_cast<float>(std::max(tex->get_Height(), 1u));
+                src.set(g_ui_mask_src.x / w, g_ui_mask_src.y / h, g_ui_mask_src.z / w, g_ui_mask_src.w / h);
+                break;
+            }
+        }
+        RCache.set_c(c, g_ui_mask_dst);
+        RCache.set_c("ui_mask_src", src);
+    }
 }
 
 void dxUIRender::SetAlphaRef(int aref)

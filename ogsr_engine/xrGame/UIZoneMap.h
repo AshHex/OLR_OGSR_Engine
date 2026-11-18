@@ -17,6 +17,12 @@ class CUIZoneMap
     CUIStatic m_clipFrame;
     CUIStatic m_pointerDistanceText;
 
+    // SOP zone_map.xml: minimap:background:mask - the map shows through the red of this picture (atlas id or file), laid over the
+    // background rect (hud\minimap, IRender_interface::ui_mask); minimap:level_frame:map_color - the map's colour
+    shared_str m_mask_file;
+    Frect m_mask_src{};
+    u32 m_map_color{0x7fffffff};
+
 public:
     CUIZoneMap();
     virtual ~CUIZoneMap();

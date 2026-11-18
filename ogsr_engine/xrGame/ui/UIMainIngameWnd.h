@@ -61,9 +61,25 @@ protected:
     //изображение оружия
     CUIStatic UIWeaponBack;
     CUIStatic UIWeaponSignAmmo;
+    // optional (SOP HUD styles): name of the active item, ammo type and fire mode on the weapon panel
+    CUIStatic* UIWeaponName{};
+    CUIStatic* UIAmmoName{};
+    CUIStatic* UIFireMode{};
+    // SOP HUDs place static_firemode on top of static_ammo: the mode is then appended to the ammo count
+    bool m_bFireModeInAmmo{};
     CUIStatic UIWeaponIcon;
 
     Frect UIWeaponIcon_rect;
+    // static_wpn_icon with scale_x (SOP): the icon keeps its aspect inside UIWeaponIcon_rect scaled by m_WpnIconScale, left aligned and
+    // centred vertically; the weapon's own icon unless use_ammo="1". Without it: the ammo icon in the old SoC size
+    bool m_bWpnIconFit{}, m_bWpnIconUseAmmo{true};
+    Fvector2 m_WpnIconScale{1.f, 1.f};
+    // the 3D model of the icon (as the inventory cells: g_ui3d_cell_icons), over UIWeaponIcon's rect; UIWeaponIcon hidden while it shows
+    CUIStatic UIWeaponIcon3D;
+    u64 m_wpn_icon3d_key{};
+    bool m_wpn_icon3d_failed{};
+    bool UpdateWeaponIcon3D(class CInventoryItem* item, const shared_str& sect);
+    void HideWeaponIcon();
 
 public:
     CUIStatic* GetPDAOnline() { return &UIPdaOnline; };
@@ -139,7 +155,7 @@ protected:
     void UpdateFlashingIcons();
     void UpdateActiveItemInfo();
 
-    void SetAmmoIcon(const shared_str& seсt_name);
+    void SetAmmoIcon(const shared_str& seсt_name, class CInventoryItem* item = nullptr);
 
     // first - иконка, second - анимация
     DEF_MAP(FlashingIcons, EFlashingIcons, CUIStatic*);

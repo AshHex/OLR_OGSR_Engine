@@ -66,7 +66,8 @@ void CFontManager::InitializeFonts()
 
 LPCSTR CFontManager::GetFontTexName(LPCSTR section)
 {
-    constexpr const char* tex_names[] = {"texture800", "texture", "texture1600"};
+    // the tiers are named by screen size, as in SOP: 1600 - up to 1080p, 2k - 1440p, 4k - 2160p
+    constexpr const char* tex_names[] = {"texture800", "texture", "texture1600", "texture2k", "texture4k"};
     int def_idx = 1; // default 1024x768
     int idx = def_idx;
 
@@ -74,10 +75,14 @@ LPCSTR CFontManager::GetFontTexName(LPCSTR section)
 
     if (h <= 600)
         idx = 0;
-    else if (h < 1024)
+    else if (h < 900)
         idx = 1;
-    else
+    else if (h < 1300)
         idx = 2;
+    else if (h < 2000)
+        idx = 3;
+    else
+        idx = 4;
 
     while (idx >= 0)
     {
@@ -130,9 +135,18 @@ void CFontManager::InitializeFont(CGameFont*& F, LPCSTR section, u32 flags)
 
 CGameFont* CFontManager::InitializeCustomFont(LPCSTR section, u32 flags)
 {
+    // xml uses short names (letterica22), fonts.ltx sections are ui_font_<name>
+    string256 full_name;
+    if (!pSettings->section_exist(section))
+    {
+        xr_strconcat(full_name, "ui_font_", section);
+        if (pSettings->section_exist(full_name))
+            section = full_name;
+    }
+
     for (auto& font : m_all_fonts)
     {
-        if (strstr(font->m_font_name.c_str(), section))
+        if (!xr_strcmp(font->m_font_name.c_str(), section))
             return font;
     }
 
@@ -210,6 +224,13 @@ void CHUDManager::OnFrame()
 {
     if (!b_online)
         return;
+
+    extern bool g_ui_hud_reload_request;
+    if (g_ui_hud_reload_request && pUI && pUI->UIMainIngameWnd)
+    {
+        g_ui_hud_reload_request = false;
+        ReloadMainIngameWnd();
+    }
     if (pUI)
         pUI->UIOnFrame();
     m_pHUDTarget->CursorOnFrame();
@@ -345,17 +366,24 @@ void CHUDManager::Hit(int idx, float power, const Fvector& dir) { HitMarker.Hit(
 
 void CHUDManager::SetHitmarkType(LPCSTR tex_name) { HitMarker.InitShader(tex_name); }
 #include "ui\UIMainInGameWnd.h"
-void CHUDManager::OnScreenRatioChanged()
+void CHUDManager::ReloadMainIngameWnd()
 {
     xr_delete(pUI->UIMainIngameWnd);
 
     pUI->UIMainIngameWnd = xr_new<CUIMainIngameWnd>();
     pUI->UIMainIngameWnd->Init();
     pUI->UIMainIngameWnd->OnConnected(); //Перезагружаем здесь миникарту, чтобы она не пропадала при изменении разрешения экрана.
+    if (auto act = Actor())
+        act->UpdateArtefactPanel(); //Обновляем панель с артами на худе
+}
+
+void CHUDManager::OnScreenRatioChanged()
+{
+    ReloadMainIngameWnd();
     pUI->UnLoad();
     pUI->Load(pUI->UIGame());
     if (auto act = Actor())
-        act->UpdateArtefactPanel(); //Обновляем панель с артами на худе
+        act->UpdateArtefactPanel();
 }
 
 void CHUDManager::OnDisconnected()

@@ -1,7 +1,9 @@
 #include "common.h"
 #include "sload.h"
 
+#ifndef USE_1_DETAIL
 #define	USE_4_DETAIL
+#endif
 
 #if defined(USE_TDETAIL) && defined(USE_4_DETAIL)
 #	define	USE_4_BUMP
@@ -59,6 +61,7 @@ f_deffer 	main	( p_flat I 		)
 
  # else
 	D.rgb	= 2*D.rgb*tex2D	(s_detail, I.tcdbump).rgb;
+	half3	N 	= I.N.xyz	;
  # endif
 # else
 	half3	N 	= I.N.xyz	;

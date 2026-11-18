@@ -39,6 +39,7 @@
 using namespace luabind;
 
 LPCSTR command_line() { return (Core.Params); }
+LPCSTR user_name() { return Core.UserName; } // SOP main menu shows it
 
 #ifdef DEBUG
 void check_object(CScriptGameObject* object)
@@ -1144,7 +1145,7 @@ void CLevel::script_register(lua_State* L)
                                  def("remove_points", &remove_actor_points), def("add_to_ranking", &add_human_to_top_list), def("remove_from_ranking", &remove_human_from_top_list),
                                  def("get_actor_ranking", &get_actor_ranking)];
 
-    module(L)[def("command_line", &command_line)];
+    module(L)[def("command_line", &command_line), def("user_name", &user_name)];
 
     module(L, "relation_registry")[def("community_goodwill", &g_community_goodwill), def("set_community_goodwill", &g_set_community_goodwill),
                                    def("change_community_goodwill", &g_change_community_goodwill), def("get_personal_goodwill", &g_get_personal_goodwill),

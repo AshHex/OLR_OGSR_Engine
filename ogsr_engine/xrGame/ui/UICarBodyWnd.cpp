@@ -85,6 +85,8 @@ void CUICarBodyWnd::Init()
     m_pUICharacterInfoRight->SetAutoDelete(true);
     m_pUIOthersIcon->AttachChild(m_pUICharacterInfoRight);
     m_pUICharacterInfoRight->Init(0, 0, m_pUIOthersIcon->GetWidth(), m_pUIOthersIcon->GetHeight(), "trade_character.xml");
+    m_pUICharacterInfoLeft->OffsetIcon(uiXml.ReadAttribFlt("static_icon", 0, "icon_dx"), uiXml.ReadAttribFlt("static_icon", 0, "icon_dy"));
+    m_pUICharacterInfoRight->OffsetIcon(uiXml.ReadAttribFlt("static_icon", 1, "icon_dx"), uiXml.ReadAttribFlt("static_icon", 1, "icon_dy"));
 
     m_pUIOurBagWnd = xr_new<CUIStatic>();
     m_pUIOurBagWnd->SetAutoDelete(true);

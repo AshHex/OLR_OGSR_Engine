@@ -37,6 +37,11 @@ public:
     const emitter_info& emitter() const { return m_emitter; }
     bool sky_lookup_valid() const { return m_sky_valid; }
 
+    // HUD passes draw with the camera at the origin: positions there are camera-relative, so the height fog (world height,
+    // emitter mask, distance to eye_position) can't be computed for them and is switched off
+    void set_hud_pass(bool b) { m_hud_pass = b; }
+    bool hud_pass() const { return m_hud_pass; }
+
 private:
     bool load_cache(LPCSTR cache_name, u32 src_crc, u32 src_size, xr_vector<u32>& pixels);
     void save_cache(LPCSTR cache_name, u32 src_crc, u32 src_size, const xr_vector<u32>& pixels);
@@ -46,6 +51,7 @@ private:
     emitter_info m_emitter;
     IDirect3DTexture9* m_emitter_tex{};
     bool m_sky_valid{};
+    bool m_hud_pass{};
     const void* m_sky_owner{};
 };
 

@@ -119,6 +119,9 @@ float ps_r_ui3d_exposure = 1.f;
 // the outline of the 3D model tiles the UI draws now (hud_ui3d: ui3d_outline, ui3d_outline_params; IRender_interface::ui_model_outline)
 Fvector4 g_ui3d_outline{}, g_ui3d_outline_params{};
 bool g_ui3d_outline_dirty{};
+// the mask of hud\minimap (IRender_interface::ui_mask)
+Fvector4 g_ui_mask_dst{}, g_ui_mask_src{};
+shared_str g_ui_mask_texture;
 float ps_r__Tree_SBC = 1.5f; // scale bias correct
 
 float ps_r__WallmarkTTL = 50.f;

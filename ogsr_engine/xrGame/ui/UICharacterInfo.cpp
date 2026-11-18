@@ -163,6 +163,14 @@ void CUICharacterInfo::Init(float x, float y, float width, float height, const c
     Init(x, y, width, height, &uiXml);
 }
 
+void CUICharacterInfo::OffsetIcon(float dx, float dy)
+{
+    if (!m_icons[eUIIcon] || (fis_zero(dx) && fis_zero(dy)))
+        return;
+    const Fvector2 pos = m_icons[eUIIcon]->GetWndPos();
+    m_icons[eUIIcon]->SetWndPos(pos.x + dx, pos.y + dy);
+}
+
 void CUICharacterInfo::InitCharacter(u16 id)
 {
     m_ownerID = id;

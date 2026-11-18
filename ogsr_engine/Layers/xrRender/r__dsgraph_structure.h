@@ -212,6 +212,12 @@ public:
     void ui_model_invalidate_all() override { UIModels.invalidate_all(); }
     u32 ui_model_evict_cached() override { return UIModels.evict_all_cached(); }
     void ui_model_outline(const Fcolor& color, float width, float softness) override { CUIModels::set_outline(color, width, softness); }
+    void ui_mask(const Frect& screen_rect, LPCSTR texture, const Frect& src) override
+    {
+        g_ui_mask_dst.set(screen_rect.x1, screen_rect.y1, 1.f / std::max(screen_rect.width(), 1.f), 1.f / std::max(screen_rect.height(), 1.f));
+        g_ui_mask_src.set(src.x1, src.y1, src.width(), src.height());
+        g_ui_mask_texture = texture;
+    }
     void r_dsgraph_render_lods(bool _setup_zb, bool _clear);
     void r_dsgraph_render_sorted();
     void r_dsgraph_render_emissive();

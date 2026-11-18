@@ -186,6 +186,15 @@ void CUIItemInfo::InitItem(CInventoryItem* pInvItem)
         UICondProgresBar->Show(true);
         UICondProgresBar->SetProgressPos(cond * 100.0f + 1.0f - EPS);
     }
+    if (UICondition)
+    {
+        // the condition in percent (as in SOP), coloured from red to green like the bar
+        const float cond = pInvItem->GetConditionToShow();
+        sprintf_s(str, "%d%%", iFloor(cond * 100.0f + 0.5f));
+        UICondition->SetText(str);
+        const float c = std::clamp(cond, 0.f, 1.f);
+        UICondition->SetTextColor(color_rgba(iFloor(240.f - 110.f * c), iFloor(70.f + 160.f * c), 50, 255));
+    }
 
     if (UIDesc)
     {

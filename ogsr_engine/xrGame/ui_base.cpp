@@ -111,9 +111,19 @@ sPoly2D* C2DFrustum::ClipPoly(sPoly2D& S, sPoly2D& D) const
     return dest;
 }
 
+// HUD style (as in SOP): config/ui/hud_type_N/<name>_N.xml replace maingame, zone_map, motion_icon and car_panel
+u32 g_ui_hud_type = 2;
+bool g_ui_hud_reload_request = false;
+
 void ui_core::OnDeviceReset()
 {
     m_scale_.set(float(Device.dwWidth) / UI_BASE_WIDTH, float(Device.dwHeight) / UI_BASE_HEIGHT);
+
+    // anchored layouts are resolved when the xml is read, so the HUD is reloaded for a new aspect ratio
+    const float aspect = float(Device.dwWidth) / float(_max(Device.dwHeight, 1u));
+    if (m_last_aspect != 0.f && !fsimilar(m_last_aspect, aspect))
+        g_ui_hud_reload_request = true;
+    m_last_aspect = aspect;
 
     m_2DFrustum.CreateFromRect(Frect().set(0.0f, 0.0f, float(Device.dwWidth), float(Device.dwHeight)));
 }
@@ -269,6 +279,25 @@ void ui_core::RenderFont() { Font()->Render(); }
 shared_str ui_core::get_xml_name(LPCSTR fn)
 {
     string_path str;
+
+    if (g_ui_hud_type)
+    {
+        static constexpr LPCSTR hud_files[] = {"maingame", "zone_map", "motion_icon", "car_panel"};
+        string_path base;
+        xr_strcpy(base, fn);
+        if (strext(base))
+            *strext(base) = 0;
+        for (LPCSTR name : hud_files)
+        {
+            if (xr_strcmp(base, name))
+                continue;
+            string_path tmp;
+            sprintf_s(str, "hud_type_%u\\%s_%u.xml", g_ui_hud_type, name, g_ui_hud_type);
+            if (FS.exist(tmp, "$game_config$", "ui\\", str))
+                return str;
+            break;
+        }
+    }
     if (!is_widescreen())
     {
         sprintf_s(str, "%s", fn);

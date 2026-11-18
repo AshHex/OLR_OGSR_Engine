@@ -27,6 +27,30 @@ void CUITextureMaster::ParseShTexInfo(LPCSTR xml_file)
 {
     CUIXml xml;
     xml.Init(CONFIG_PATH, UI_PATH, xml_file);
+
+    // CoP format (config\ui\textures_descr): <file name="ui\ui_hud"><texture id=... x=... /></file>...
+    if (const int files_num = xml.GetNodesNum("", 0, "file"))
+    {
+        for (int f = 0; f < files_num; ++f)
+        {
+            XML_NODE* file_node = xml.NavigateToNode("file", f);
+            const shared_str file_name = xml.ReadAttrib(file_node, "name", "");
+            const int num = xml.GetNodesNum(file_node, "texture");
+            for (int i = 0; i < num; ++i)
+            {
+                XML_NODE* node = xml.NavigateToNode(file_node, "texture", i);
+                TEX_INFO info;
+                info.file = file_name;
+                info.rect.x1 = xml.ReadAttribFlt(node, "x");
+                info.rect.x2 = xml.ReadAttribFlt(node, "width") + info.rect.x1;
+                info.rect.y1 = xml.ReadAttribFlt(node, "y");
+                info.rect.y2 = xml.ReadAttribFlt(node, "height") + info.rect.y1;
+                m_textures.insert(mk_pair(shared_str(xml.ReadAttrib(node, "id", "")), info));
+            }
+        }
+        return;
+    }
+
     shared_str file = xml.Read("file_name", 0, "");
 
     //	shared_textures_it	sht_it = m_shTex.find(texture);

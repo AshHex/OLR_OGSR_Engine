@@ -133,6 +133,7 @@ void CUIPdaWnd::Init()
     UIMainPdaFrame->AttachChild(UITabControl);
     xml_init.InitTabControl(uiXml, "tab", 0, UITabControl);
     UITabControl->SetMessageTarget(this);
+    UITabControl->SetWindowName("pda_tab_control"); // level.get_pda_wnd():FindChild (render bench shoots every tab)
 
     m_updatedSectionImage = xr_new<CUIStatic>();
     xml_init.InitStatic(uiXml, "updated_section_static", 0, m_updatedSectionImage);
@@ -142,7 +143,19 @@ void CUIPdaWnd::Init()
 
     m_pActiveSection = eptNoActiveTab;
 
-    RearrangeTabButtons(UITabControl, m_sign_places_main);
+    if (uiXml.ReadAttribInt("tab", 0, "fixed_layout", 0))
+    {
+        // the buttons keep their xml places (SOP PDA picture); the "updated" sign at the left top of a button
+        m_sign_places_main.clear();
+        for (CUITabButton* btn : *UITabControl->GetButtonsVector())
+        {
+            Fvector2 pos = btn->GetWndPos();
+            pos.add(Fvector2{4.f, 4.f});
+            m_sign_places_main.push_back(pos);
+        }
+    }
+    else
+        RearrangeTabButtons(UITabControl, m_sign_places_main);
 }
 
 void CUIPdaWnd::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)

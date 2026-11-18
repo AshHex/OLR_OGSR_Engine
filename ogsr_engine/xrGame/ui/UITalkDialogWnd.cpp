@@ -39,6 +39,11 @@ void CUITalkDialogWnd::Init(float x, float y, float width, float height)
     CUIXmlInit ml_init;
 
     inherited::Init(x, y, width, height);
+    // the dialog window rect from xml (anchored "main" keeps the 4:3 layout in the middle of a wide screen)
+    // (not CUIXmlInit::InitWindow: it calls the virtual Init, which is this function)
+    if (m_uiXml->NavigateToNode("main", 0))
+        inherited::Init(m_uiXml->ReadAttribFlt("main", 0, "x"), m_uiXml->ReadAttribFlt("main", 0, "y"), m_uiXml->ReadAttribFlt("main", 0, "width", width),
+                        m_uiXml->ReadAttribFlt("main", 0, "height", height));
 
     AttachChild(&UIStaticTop);
     CUIXmlInit::InitStatic(*m_uiXml, "top_background", 0, &UIStaticTop);
@@ -54,6 +59,8 @@ void CUITalkDialogWnd::Init(float x, float y, float width, float height)
     UICharacterInfoLeft.Init(0.0f, 0.0f, UIOurIcon.GetWidth(), UIOurIcon.GetHeight(), TRADE_CHARACTER_XML);
     UIOthersIcon.AttachChild(&UICharacterInfoRight);
     UICharacterInfoRight.Init(0.0f, 0.0f, UIOthersIcon.GetWidth(), UIOthersIcon.GetHeight(), TRADE_CHARACTER_XML);
+    UICharacterInfoLeft.OffsetIcon(m_uiXml->ReadAttribFlt("left_character_icon", 0, "icon_dx"), m_uiXml->ReadAttribFlt("left_character_icon", 0, "icon_dy"));
+    UICharacterInfoRight.OffsetIcon(m_uiXml->ReadAttribFlt("right_character_icon", 0, "icon_dx"), m_uiXml->ReadAttribFlt("right_character_icon", 0, "icon_dy"));
 
     //основной фрейм диалога
     AttachChild(&UIDialogFrame);

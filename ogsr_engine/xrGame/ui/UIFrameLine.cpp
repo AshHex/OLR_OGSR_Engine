@@ -53,13 +53,20 @@ void CUIFrameLine::UpdateSize()
 {
     VERIFY(g_bRendering);
 
-    float f_width = elements[flFirst].GetOriginalRect().width();
-    float f_height = elements[flFirst].GetOriginalRect().height();
+    // keep_aspect: the widths of the textures in square units (the virtual 1024 width is stretched on a wide screen)
+    for (int i = 0; i < flMax; ++i)
+    {
+        const Frect r = elements[i].GetOriginalRect();
+        elements[i].SetRect(0, 0, r.width() * m_kx, r.height());
+    }
+
+    float f_width = elements[flFirst].GetRect().width();
+    float f_height = elements[flFirst].GetRect().height();
     elements[flFirst].SetPos(iPos.x, iPos.y);
 
     // Right or bottom texture
-    float s_width = elements[flSecond].GetOriginalRect().width();
-    float s_height = elements[flSecond].GetOriginalRect().height();
+    float s_width = elements[flSecond].GetRect().width();
+    float s_height = elements[flSecond].GetRect().height();
 
     (bHorizontalOrientation) ? elements[flSecond].SetPos(iPos.x + iSize - s_width, iPos.y) : elements[flSecond].SetPos(iPos.x, iPos.y + iSize - s_height);
 
@@ -78,7 +85,7 @@ void CUIFrameLine::UpdateSize()
         back_height = f_height;
 
         // Size of frameline must be equal or greater than sum of size of two side textures
-        R_ASSERT(back_width > 0);
+        back_width = _max(back_width, 0.f);
     }
     else
     {
@@ -86,15 +93,15 @@ void CUIFrameLine::UpdateSize()
         back_height = iSize - f_height - s_height;
 
         // Size of frameline must be equal or greater than sum of size of two side textures
-        R_ASSERT(back_height > 0);
+        back_height = _max(back_height, 0.f);
     }
 
     // Now resize back texture
     float rem;
     int tile;
 
-    float b_width = elements[flBack].GetOriginalRect().width();
-    float b_height = elements[flBack].GetOriginalRect().height();
+    float b_width = elements[flBack].GetRect().width();
+    float b_height = elements[flBack].GetRect().height();
 
     if (bHorizontalOrientation)
     {
@@ -118,6 +125,10 @@ void CUIFrameLine::UpdateSize()
 
 void CUIFrameLine::Render()
 {
+    // an empty frame line (OGSR needs the node, the SOP layout has not got the picture)
+    if (iSize <= 0.f)
+        return;
+
     // If size changed - update size
     if (!(uFlags & flValidSize))
         UpdateSize();

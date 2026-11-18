@@ -33,6 +33,12 @@
 #include "../actorcondition.h"
 
 #include "../string_table.h"
+#include "../WeaponMagazined.h"
+#include "UICellItem.h"
+#include "UIModel.h"
+#include "../../Include/xrRender/Kinematics.h"
+
+extern BOOL g_ui3d_cell_icons;
 #include "clsid_game.h"
 #include "UIArtefactPanel.h"
 #include "UIMap.h"
@@ -156,10 +162,40 @@ void CUIMainIngameWnd::Init()
     xml_init.InitStatic(uiXml, "static_ammo", 0, &UIWeaponSignAmmo);
     UIWeaponSignAmmo.SetElipsis(CUIStatic::eepEnd, 2);
 
+    for (auto [node, wnd] : {std::pair{"static_weapon_name", &UIWeaponName}, std::pair{"static_ammo_name", &UIAmmoName}, std::pair{"static_firemode", &UIFireMode}})
+    {
+        if (!uiXml.NavigateToNode(node, 0))
+            continue;
+        *wnd = xr_new<CUIStatic>();
+        (*wnd)->SetAutoDelete(true);
+        UIWeaponBack.AttachChild(*wnd);
+        xml_init.InitStatic(uiXml, node, 0, *wnd);
+        (*wnd)->SetElipsis(CUIStatic::eepEnd, 2);
+    }
+
+    m_bFireModeInAmmo = false;
+    if (UIFireMode)
+    {
+        Frect fm = UIFireMode->GetWndRect(), am = UIWeaponSignAmmo.GetWndRect();
+        m_bFireModeInAmmo = fm.x1 < am.x2 && am.x1 < fm.x2 && fm.y1 < am.y2 && am.y1 < fm.y2;
+        if (m_bFireModeInAmmo)
+            UIFireMode->Show(false);
+    }
+
     UIWeaponBack.AttachChild(&UIWeaponIcon);
     xml_init.InitStatic(uiXml, "static_wpn_icon", 0, &UIWeaponIcon);
     UIWeaponIcon.SetShader(GetEquipmentIconsShader());
     UIWeaponIcon_rect = UIWeaponIcon.GetWndRect();
+    // SOP HUD styles: the icon of the weapon itself (use_ammo="1": of its ammo) fitted into the static's rect scaled by scale_x/scale_y
+    m_bWpnIconFit = !!uiXml.ReadAttrib("static_wpn_icon", 0, "scale_x", nullptr);
+    m_bWpnIconUseAmmo = !m_bWpnIconFit || uiXml.ReadAttribInt("static_wpn_icon", 0, "use_ammo", 0);
+    m_WpnIconScale.set(uiXml.ReadAttribFlt("static_wpn_icon", 0, "scale_x", 1.f), uiXml.ReadAttribFlt("static_wpn_icon", 0, "scale_y", 1.f));
+    if (m_bWpnIconFit)
+        UIWeaponIcon.SetStretchTexture(true);
+    UIWeaponBack.AttachChild(&UIWeaponIcon3D);
+    UIWeaponIcon3D.SetWndRect(UIWeaponIcon_rect);
+    UIWeaponIcon3D.Enable(false);
+    UIWeaponIcon3D.Show(false);
     //---------------------------------------------------------
     AttachChild(&UIPickUpItemIcon);
     xml_init.InitStatic(uiXml, "pick_up_item", 0, &UIPickUpItemIcon);
@@ -306,35 +342,132 @@ void CUIMainIngameWnd::Draw()
     RenderQuickInfos();
 }
 
-void CUIMainIngameWnd::SetAmmoIcon(const shared_str& sect_name)
+void CUIMainIngameWnd::HideWeaponIcon()
+{
+    UIWeaponIcon.Show(false);
+    UIWeaponIcon3D.Show(false);
+}
+
+void CUIMainIngameWnd::SetAmmoIcon(const shared_str& sect_name, PIItem item)
 {
     if (!sect_name.size())
     {
-        UIWeaponIcon.Show(false);
+        HideWeaponIcon();
         return;
     };
 
-    UIWeaponIcon.Show(true);
     // properties used by inventory menu
     CIconParams icon_params(sect_name);
 
     icon_params.set_shader(&UIWeaponIcon);
 
-    float iGridWidth = icon_params.grid_width;
+    if (m_bWpnIconFit)
+    {
+        // the icon's aspect on the screen: its width in UI units is squeezed by kx as the static's own rect
+        const float iw = std::max(icon_params.grid_width, 1.f) * INV_GRID_WIDTH * UI()->get_current_kx();
+        const float ih = std::max(icon_params.grid_height, 1.f) * INV_GRID_HEIGHT;
+        const float bw = UIWeaponIcon_rect.width() * m_WpnIconScale.x, bh = UIWeaponIcon_rect.height() * m_WpnIconScale.y;
+        const float s = std::min(bw / iw, bh / ih);
+        UIWeaponIcon.SetWndPos(UIWeaponIcon_rect.x1, UIWeaponIcon_rect.y1 + (bh - ih * s) * 0.5f);
+        UIWeaponIcon.SetWidth(iw * s);
+        UIWeaponIcon.SetHeight(ih * s);
+    }
+    else
+    {
+        float iGridWidth = icon_params.grid_width;
 
-    float w = std::clamp(iGridWidth, 1.f, 2.f) * INV_GRID_WIDTH;
-    float h = INV_GRID_HEIGHT;
-    w *= UI()->get_current_kx();
+        float w = std::clamp(iGridWidth, 1.f, 2.f) * INV_GRID_WIDTH;
+        float h = INV_GRID_HEIGHT;
+        w *= UI()->get_current_kx();
 
-    float x = UIWeaponIcon_rect.x1;
-    if (iGridWidth < 2.f)
-        x += w / 2.0f;
+        float x = UIWeaponIcon_rect.x1;
+        if (iGridWidth < 2.f)
+            x += w / 2.0f;
 
-    UIWeaponIcon.SetWndPos(x, UIWeaponIcon_rect.y1);
+        UIWeaponIcon.SetWndPos(x, UIWeaponIcon_rect.y1);
 
-    UIWeaponIcon.SetWidth(w);
-    UIWeaponIcon.SetHeight(h);
+        UIWeaponIcon.SetWidth(w);
+        UIWeaponIcon.SetHeight(h);
+    }
+
+    // the 3D model in the 2D icon's place when the inventory shows 3D icons
+    const bool model = UpdateWeaponIcon3D(item, sect_name);
+    if (model)
+        UIWeaponIcon3D.SetWndRect(UIWeaponIcon.GetWndRect());
+    UIWeaponIcon3D.Show(model);
+    UIWeaponIcon.Show(!model);
 };
+
+// the icon's model, faced as the inventory cell icons; false: none (turned off, another renderer, no model file) - the 2D icon
+bool CUIMainIngameWnd::UpdateWeaponIcon3D(PIItem item, const shared_str& sect)
+{
+    auto* wpn = smart_cast<CWeapon*>(item);
+    const ui3d_cell_icons_settings& cfg = ui3d_cell_icons();
+    const bool is_ammo = !wpn && pSettings->line_exist(sect, "box_size");
+    const bool on = g_ui3d_cell_icons && cfg.enabled && (!wpn || cfg.weapons) && (!is_ammo || cfg.ammo) && ::Render->ui_model_supported() &&
+        READ_IF_EXISTS(pSettings, r_bool, sect, "ui3d_icon", true);
+    if (!on)
+    {
+        UIWeaponIcon3D.RemoveModel();
+        m_wpn_icon3d_key = 0;
+        return false;
+    }
+
+    // what the model shows: the section, a weapon's addons and its bone state (an addon or the magazine shown or hidden)
+    struct
+    {
+        u64 section, scope, bones[2];
+        u32 flags;
+    } s;
+    std::memset(&s, 0, sizeof(s));
+    s.section = std::hash<std::string_view>{}(std::string_view{sect.c_str(), sect.size()});
+    const bool scope = wpn && wpn->ScopeAttachable() && wpn->IsScopeAttached();
+    if (wpn)
+    {
+        s.flags = (scope ? 1u : 0u) | (wpn->SilencerAttachable() && wpn->IsSilencerAttached() ? 2u : 0u) |
+            (wpn->GrenadeLauncherAttachable() && wpn->IsGrenadeLauncherAttached() ? 4u : 0u);
+        if (scope)
+            s.scope = std::hash<std::string_view>{}(std::string_view{wpn->GetScopeName().c_str(), wpn->GetScopeName().size()});
+        if (IKinematics* k = smart_cast<IKinematics*>(wpn->Visual()))
+        {
+            const VisMask mask = k->LL_GetBonesVisible();
+            s.bones[0] = mask._visimask.flags;
+            s.bones[1] = mask._visimask_ex.flags;
+        }
+    }
+    const u64 key = std::hash<std::string_view>{}(std::string_view{reinterpret_cast<const char*>(&s), sizeof(s)}) ^ g_ui3d_icons_gen;
+    if (key == m_wpn_icon3d_key)
+        return !m_wpn_icon3d_failed;
+
+    m_wpn_icon3d_key = key;
+    UIWeaponIcon3D.RemoveModel();
+    CUIModel& m = UIWeaponIcon3D.Model();
+    if (wpn)
+    {
+        m.SetWeaponItem(sect.c_str(), scope ? wpn->GetScopeName().c_str() : "", wpn->SilencerAttachable() && wpn->IsSilencerAttached(),
+                        wpn->GrenadeLauncherAttachable() && wpn->IsGrenadeLauncherAttached());
+        if (m.HasVisual())
+            m.CopyWeaponBones(smart_cast<IKinematics*>(wpn->Visual()));
+    }
+    else
+        m.SetFromSection(sect.c_str());
+
+    m_wpn_icon3d_failed = !m.HasVisual();
+    if (m_wpn_icon3d_failed)
+    {
+        UIWeaponIcon3D.RemoveModel();
+        return false;
+    }
+
+    // still, faced as its cell icon, with the cells' default outline
+    m.SetAnimated(false);
+    m.SetRotationPerFrame(Fvector{});
+    m.OrientIcon(std::max(READ_IF_EXISTS(pSettings, r_float, sect, "inv_grid_width", 1.f), 1.f), std::max(READ_IF_EXISTS(pSettings, r_float, sect, "inv_grid_height", 1.f), 1.f),
+                 cfg.tilt, false);
+    m.SetScale(m.GetScale() * ui3d_icon_fixes::cell_scale(sect));
+    m.SetOutline(cfg.def.color, cfg.def.width, cfg.def.softness);
+    return true;
+}
 
 void CUIMainIngameWnd::Update()
 {
@@ -779,6 +912,15 @@ void CUIMainIngameWnd::UpdatePickUpItem()
 void CUIMainIngameWnd::UpdateActiveItemInfo()
 {
     PIItem item = m_pActor->inventory().ActiveItem();
+
+    if (UIWeaponName)
+        UIWeaponName->SetText(item ? item->NameShort() : "");
+    if (UIFireMode)
+    {
+        auto wpn = smart_cast<CWeaponMagazined*>(item);
+        UIFireMode->SetText(wpn && wpn->HasFireModes() ? wpn->GetCurrentFireModeStr() : "");
+    }
+
     if (item && item->NeedBriefInfo())
     {
         xr_string str_name;
@@ -787,18 +929,42 @@ void CUIMainIngameWnd::UpdateActiveItemInfo()
         item->GetBriefInfo(str_name, icon_sect_name, str_count);
 
         UIWeaponSignAmmo.Show(true);
-        UIWeaponBack.SetText(str_name.c_str());
+        if (UIAmmoName)
+        {
+            // the ammo type has its own static, the fire mode too (UIFireMode)
+            UIAmmoName->SetText(pSettings->line_exist(icon_sect_name.c_str(), "inv_name_short") ?
+                                    CStringTable().translate(pSettings->r_string(icon_sect_name.c_str(), "inv_name_short")).c_str() :
+                                    "");
+            UIWeaponBack.SetText("");
+        }
+        else
+            UIWeaponBack.SetText(str_name.c_str());
+        if (m_bFireModeInAmmo)
+        {
+            auto wpn = smart_cast<CWeaponMagazined*>(item);
+            if (wpn && wpn->HasFireModes())
+            {
+                str_count += " ";
+                str_count += wpn->GetCurrentFireModeStr();
+            }
+        }
         UIWeaponSignAmmo.SetText(str_count.c_str());
-        SetAmmoIcon(icon_sect_name.c_str());
+        if (m_bWpnIconUseAmmo)
+            SetAmmoIcon(icon_sect_name.c_str());
+        else
+            SetAmmoIcon(item->object().cNameSect(), item);
 
         //-------------------
         m_pWeapon = smart_cast<CWeapon*>(item);
     }
     else
     {
-        UIWeaponIcon.Show(false);
+        HideWeaponIcon();
         UIWeaponSignAmmo.Show(false);
         UIWeaponBack.SetText("");
+        // SOP shows the name of an item without ammo (bolt, knife...) in the ammo slot
+        if (UIAmmoName)
+            UIAmmoName->SetText(item ? item->NameShort() : "");
         m_pWeapon = item ? smart_cast<CWeapon*>(item) : nullptr;
     }
 }

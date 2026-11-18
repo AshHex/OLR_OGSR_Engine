@@ -232,7 +232,18 @@ public:
     virtual bool use_throw_randomness();
     virtual bool NeedOsoznanieMode() { return m_need_osoznanie_mode != FALSE; }
 
+    // дистанция, с которой актор может заговорить с этим персонажем (talk_dist в секции, 0 = take_dist актора)
+    float TalkDist(const shared_str& section)
+    {
+        if (m_talk_dist < 0.f)
+            m_talk_dist = READ_IF_EXISTS(pSettings, r_float, section, "talk_dist", 0.f);
+        return m_talk_dist;
+    }
+
     void SetNextItemSlot(u32);
+
+private:
+    float m_talk_dist{-1.f};
 };
 
 #include "inventory_owner_inline.h"

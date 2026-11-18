@@ -84,6 +84,9 @@ protected:
 public:
     virtual shared_str correct_file_name(LPCSTR path, LPCSTR fn) { return fn; }
 
+    // lets a derived parser recalculate layout attributes (x, width...) of a node, see CUIXml
+    virtual bool TransformLayoutAttrib(XML_NODE* node, LPCSTR attrib, LPCSTR raw_value, float default_value, float& result) { return false; }
+
 private:
     CXml(const CXml& copy);
     void operator=(const CXml& copy);

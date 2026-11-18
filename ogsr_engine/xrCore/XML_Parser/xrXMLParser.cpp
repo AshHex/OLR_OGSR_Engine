@@ -310,27 +310,22 @@ int CXml::ReadAttribInt(XML_NODE* start_node, LPCSTR path, int index, LPCSTR att
 
 float CXml::ReadAttribFlt(LPCSTR path, int index, LPCSTR attrib, float default_flt_val)
 {
-    LPCSTR result_str = ReadAttrib(path, index, attrib, NULL);
-
-    if (result_str == NULL)
-        return default_flt_val;
-
-    return (float)atof(result_str);
+    return ReadAttribFlt(NavigateToNode(path, index), attrib, default_flt_val);
 }
 
 float CXml::ReadAttribFlt(XML_NODE* start_node, LPCSTR path, int index, LPCSTR attrib, float default_flt_val)
 {
-    LPCSTR result_str = ReadAttrib(start_node, path, index, attrib, NULL);
-
-    if (result_str == NULL)
-        return default_flt_val;
-
-    return (float)atof(result_str);
+    return ReadAttribFlt(NavigateToNode(start_node, path, index), attrib, default_flt_val);
 }
 
 float CXml::ReadAttribFlt(XML_NODE* node, LPCSTR attrib, float default_flt_val)
 {
     LPCSTR result_str = ReadAttrib(node, attrib, NULL);
+
+    // UI anchors / aspect-correct layout (CUIXml)
+    float transformed;
+    if (node && TransformLayoutAttrib(node, attrib, result_str, default_flt_val, transformed))
+        return transformed;
 
     if (result_str == NULL)
         return default_flt_val;

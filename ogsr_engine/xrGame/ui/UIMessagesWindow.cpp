@@ -45,7 +45,8 @@ void CUIMessagesWindow::AddIconedPdaMessage(LPCSTR textureName, Frect originalRe
     pItem->SetTextComplexMode(true);
     pItem->UIIcon.InitTexture(textureName);
     pItem->UIIcon.SetOriginalRect(originalRect.left, originalRect.top, originalRect.right, originalRect.bottom);
-    pItem->UIMsgText.SetWndPos(pItem->UIIcon.GetWidth(), pItem->UIMsgText.GetWndPos().y);
+    // text_static x of maingame_pda_msg.xml is the gap between the icon and the text
+    pItem->UIMsgText.SetWndPos(pItem->UIIcon.GetWndPos().x + pItem->UIIcon.GetWidth() + pItem->UIMsgText.GetWndPos().x, pItem->UIMsgText.GetWndPos().y);
     pItem->UIMsgText.AdjustHeightToText();
 
     if (pItem->UIIcon.GetHeight() > pItem->UIMsgText.GetHeight())

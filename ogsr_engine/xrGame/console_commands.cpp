@@ -183,6 +183,24 @@ public:
 };
 
 // console commands
+extern u32 g_ui_hud_type;
+extern bool g_ui_hud_reload_request;
+static constexpr xr_token ui_hud_type_token[] = {{"hud_1", 1}, {"hud_2", 2}, {"hud_3", 3}, {nullptr, 0}};
+
+class CCC_HudType : public CCC_Token
+{
+public:
+    CCC_HudType(LPCSTR N) : CCC_Token(N, &g_ui_hud_type, ui_hud_type_token) {}
+    void Execute(LPCSTR args) override
+    {
+        const u32 prev = g_ui_hud_type;
+        CCC_Token::Execute(args);
+        if (prev != g_ui_hud_type)
+            g_ui_hud_reload_request = true;
+    }
+    void Info(TInfo& I) override { xr_strcpy(I, "HUD style, config\\ui\\hud_type_N"); }
+};
+
 class CCC_GameDifficulty : public CCC_Token
 {
 public:
@@ -1819,6 +1837,7 @@ void CCC_RegisterCommands()
         CMD4(CCC_Integer, "g_3d_static_debug", &m_b3dStaticDebug, 0, 1);
         CMD4(CCC_Integer, "ui3d_static_per_frame", &g_ui3d_static_per_frame, 1, 256);
         CMD3(CCC_Token, "ui3d_projection", &g_ui3d_projection, ui3d_projection_token);
+        CMD1(CCC_HudType, "ui_hud_type");
         CMD4(CCC_Integer, "ui3d_tile_cache", &g_ui3d_tile_cache, 0, 1);
         CMD4(CCC_Integer, "ui3d_cell_icons", &g_ui3d_cell_icons, 0, 1);
         CMD4(CCC_Float, "ui3d_cell_icons_scale", &g_ui3d_cell_icons_scale, 0.25f, 4.f);
